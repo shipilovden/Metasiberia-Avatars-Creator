@@ -6,6 +6,11 @@
     { "id": "outfit", "label": "Outfits" },
     { "id": "hair", "label": "Hair" },
     { "id": "eye", "label": "Eyes" },
+    { "id": "eyeshape", "label": "Eye Shape" },
+    { "id": "eyebrows", "label": "Eyebrows" },
+    { "id": "faceshape", "label": "Head Shape" },
+    { "id": "noseshape", "label": "Nose Shape" },
+    { "id": "lipshape", "label": "Lip Shape" },
     { "id": "glasses", "label": "Glasses" },
     { "id": "headwear", "label": "Headwear" },
     { "id": "beard", "label": "Beard" },
@@ -23,6 +28,12 @@
       "label": "Face & Hair",
       "description": "Hair, beard and eyes",
       "types": ["hair", "beard", "eye"]
+    },
+    {
+      "id": "face-shape",
+      "label": "Face Shapes",
+      "description": "Head and face shape controls",
+      "types": ["faceshape", "eyeshape", "eyebrows", "noseshape", "lipshape"]
     },
     {
       "id": "accessories",

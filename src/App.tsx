@@ -22,6 +22,11 @@ type SupportedType =
   | "outfit"
   | "hair"
   | "eye"
+  | "eyeshape"
+  | "eyebrows"
+  | "faceshape"
+  | "noseshape"
+  | "lipshape"
   | "glasses"
   | "headwear"
   | "beard"
@@ -111,6 +116,7 @@ const localLibrary = localLibraryManifest as LocalLibraryManifest;
 const CATEGORY_ICONS: Record<string, string> = {
   clothing: "T",
   "face-hair": "F",
+  "face-shape": "S",
   accessories: "A",
 };
 
@@ -122,6 +128,11 @@ const TYPE_LABELS: Record<UiLocale, Record<SupportedType, string>> = {
     outfit: "Образы",
     hair: "Волосы",
     eye: "Глаза",
+    eyeshape: "Форма глаз",
+    eyebrows: "Брови",
+    faceshape: "Форма головы",
+    noseshape: "Форма носа",
+    lipshape: "Форма губ",
     glasses: "Очки",
     headwear: "Головные",
     beard: "Борода",
@@ -134,6 +145,11 @@ const TYPE_LABELS: Record<UiLocale, Record<SupportedType, string>> = {
     outfit: "Outfits",
     hair: "Hair",
     eye: "Eyes",
+    eyeshape: "Eye shape",
+    eyebrows: "Eyebrows",
+    faceshape: "Head shape",
+    noseshape: "Nose shape",
+    lipshape: "Lip shape",
     glasses: "Glasses",
     headwear: "Headwear",
     beard: "Beard",
@@ -145,11 +161,13 @@ const GROUP_LABELS: Record<UiLocale, Record<string, string>> = {
   ru: {
     clothing: "Одежда",
     "face-hair": "Лицо и волосы",
+    "face-shape": "Форма лица",
     accessories: "Аксессуары",
   },
   en: {
     clothing: "Clothing",
     "face-hair": "Face & Hair",
+    "face-shape": "Face Shape",
     accessories: "Accessories",
   },
 };
@@ -260,6 +278,13 @@ const SLOT_NAMES = {
 
 type MeshSlot = (typeof SLOT_NAMES)[keyof typeof SLOT_NAMES];
 type MeshTintMap = Partial<Record<string, string>>;
+const FACIAL_FEATURE_TYPES: SupportedType[] = [
+  "faceshape",
+  "eyeshape",
+  "eyebrows",
+  "noseshape",
+  "lipshape",
+];
 
 const makeLookupKey = (type: string, id: string) => `${type}:${id}`;
 function AvatarModel({
@@ -726,6 +751,26 @@ function App() {
       if (topUrl) slotOwners.set(SLOT_NAMES.top, topUrl);
       if (bottomUrl) slotOwners.set(SLOT_NAMES.bottom, bottomUrl);
       if (footwearUrl) slotOwners.set(SLOT_NAMES.footwear, footwearUrl);
+    }
+
+    for (const featureType of FACIAL_FEATURE_TYPES) {
+      const featureUrl = getUrl(featureType);
+      const featureCapability = getCapability(featureType);
+      if (!featureUrl || !featureCapability) {
+        continue;
+      }
+
+      if (featureCapability.meshes.includes(SLOT_NAMES.head)) {
+        slotOwners.set(SLOT_NAMES.head, featureUrl);
+      }
+
+      if (
+        featureCapability.meshes.includes(SLOT_NAMES.eyeLeft) &&
+        featureCapability.meshes.includes(SLOT_NAMES.eyeRight)
+      ) {
+        slotOwners.set(SLOT_NAMES.eyeLeft, featureUrl);
+        slotOwners.set(SLOT_NAMES.eyeRight, featureUrl);
+      }
     }
 
     const eyeUrl = getUrl("eye");

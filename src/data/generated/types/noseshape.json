@@ -1,0 +1,367 @@
+{
+  "type": "noseshape",
+  "label": "Nose Shape",
+  "count": 12,
+  "assets": [
+    {
+      "id": "49918711",
+      "name": "noseShape01",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/49918711/1629118703-noseshape01-1699880639759.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape01",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-29T09:37:34.870Z",
+      "updatedAt": "2023-06-09T13:05:48.579Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "49918764",
+      "name": "noseShape02",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/49918764/1629118716-noseshape02-1699880639757.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape02",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-29T09:38:35.136Z",
+      "updatedAt": "2023-06-09T13:05:46.534Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "49918836",
+      "name": "noseShape03",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/49918836/1629118786-noseshape03-1699880639771.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape03",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-29T09:38:57.472Z",
+      "updatedAt": "2023-06-09T13:05:48.609Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "50094576",
+      "name": "noseShape04",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094576/1629121672-noseshape04-1699880641485.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape04",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:15:43.139Z",
+      "updatedAt": "2023-06-09T13:05:49.684Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "50094578",
+      "name": "noseShape05",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094578/1629121684-noseshape05-1699880641496.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape05",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:15:43.983Z",
+      "updatedAt": "2023-06-09T13:05:49.376Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "50094580",
+      "name": "noseShape06",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094580/1629121698-noseshape06-1699880641502.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape06",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:15:44.912Z",
+      "updatedAt": "2023-06-09T13:05:49.416Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "50094582",
+      "name": "noseShape07",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094582/1629121710-noseshape07-1699880641495.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape07",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:15:45.796Z",
+      "updatedAt": "2023-06-09T13:05:49.420Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "50094584",
+      "name": "noseShape08",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094584/1629121721-noseshape08-1699880641492.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape08",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:15:46.660Z",
+      "updatedAt": "2023-06-09T13:05:49.445Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "50094586",
+      "name": "noseShape09",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094586/1629121735-noseshape09-1699880641487.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape09",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:15:47.537Z",
+      "updatedAt": "2023-06-09T13:05:49.461Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "50094588",
+      "name": "noseShape10",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094588/1629121746-noseshape10-1699880641498.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape10",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:15:48.264Z",
+      "updatedAt": "2023-06-09T13:05:49.772Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "50094590",
+      "name": "noseShape11",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094590/1629121756-noseshape11-1699880641490.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape11",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:15:49.097Z",
+      "updatedAt": "2023-06-09T13:05:49.864Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    },
+    {
+      "id": "50094592",
+      "name": "noseShape12",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "noseshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094592/1629121770-noseshape12-1699880641504.png",
+      "faceBlendShapes": [
+        {
+          "name": "noseShape12",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:15:49.839Z",
+      "updatedAt": "2023-06-09T13:05:49.930Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "noseshape"
+    }
+  ]
+}

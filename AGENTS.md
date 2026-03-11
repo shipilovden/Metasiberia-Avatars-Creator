@@ -7,15 +7,15 @@
 ## Current Dataset
 - Source app: `demo`
 - Source app id: `6421563c21169e32c89017a0`
-- Supported types: `top`, `bottom`, `footwear`, `outfit`, `hair`, `eye`, `glasses`, `headwear`, `beard`, `facewear`
+- Supported types: `top`, `bottom`, `footwear`, `outfit`, `hair`, `eye`, `eyeshape`, `eyebrows`, `faceshape`, `noseshape`, `lipshape`, `glasses`, `headwear`, `beard`, `facewear`
 - Source filters now include:
   - `bodyType = generic + fullbody`
   - `gender = male + female + neutral`
 - Raw source catalog lives in [src/data/assets-catalog.json](./src/data/assets-catalog.json)
 - Current catalog snapshot totals:
-  - total unique assets: `547`
-  - male library: `441`
-  - female library: `446`
+  - total unique assets: `622`
+  - male library: `516`
+  - female library: `521`
 
 ## Local Asset Pipeline
 - `yarn assets:sync-catalog`
@@ -46,14 +46,20 @@
 - The app keeps its own local composition flow in [src/App.tsx](./src/App.tsx).
 - Gender selection switches the active local library and the available base presets.
 - The "body" choice in this project is implemented as a curated base preset switch, not as a direct RPM `bodyShape` asset pipeline.
+- Face-shape controls are implemented with additional local asset types:
+  - `faceshape` (head shape)
+  - `eyeshape` (eye shape)
+  - `eyebrows` (eyebrow shape)
+  - `noseshape` (nose shape)
+  - `lipshape` (lip shape)
 - On gender switch, incompatible selected assets are cleared.
 - On preset switch, `beard` and `facewear` are reset to avoid head-slot conflicts between different base meshes.
 
 ## Verification Status
 - Checked on `2026-03-11`.
 - `src/data/generated/local-library-manifest.json` resolves to real files for both libraries:
-  - male: `441` assets, `0` missing GLB, `0` missing icon, `4` presets, `0` missing base, `0` missing preview
-  - female: `446` assets, `0` missing GLB, `0` missing icon, `4` presets, `0` missing base, `0` missing preview
+  - male: `516` assets, `0` missing GLB, `0` missing icon, `4` presets, `0` missing base, `0` missing preview
+  - female: `521` assets, `0` missing GLB, `0` missing icon, `4` presets, `0` missing base, `0` missing preview
 - Production build passes with `yarn build`.
 - Current remaining warning is Vite's large bundle warning only.
 

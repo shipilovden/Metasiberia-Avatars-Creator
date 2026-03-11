@@ -35,6 +35,11 @@ const TYPE_TO_AVATAR_ASSET_KEY = {
   outfit: "outfit",
   hair: "hairStyle",
   eye: "eyeColor",
+  eyeshape: "eyeStyle",
+  eyebrows: "eyebrowStyle",
+  faceshape: "faceShape",
+  noseshape: "noseShape",
+  lipshape: "lipShape",
   glasses: "glasses",
   headwear: "headwear",
   beard: "beardStyle",
@@ -263,6 +268,31 @@ const applyAssetToAvatarAssets = ({ type, assetId, baseAssets }) => {
 
   if (type === "eye") {
     next.eyeColor = String(assetId);
+    return next;
+  }
+
+  if (type === "eyeshape") {
+    next.eyeStyle = String(assetId);
+    return next;
+  }
+
+  if (type === "eyebrows") {
+    next.eyebrowStyle = String(assetId);
+    return next;
+  }
+
+  if (type === "faceshape") {
+    next.faceShape = String(assetId);
+    return next;
+  }
+
+  if (type === "noseshape") {
+    next.noseShape = String(assetId);
+    return next;
+  }
+
+  if (type === "lipshape") {
+    next.lipShape = String(assetId);
     return next;
   }
 

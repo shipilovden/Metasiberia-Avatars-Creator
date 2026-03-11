@@ -1,0 +1,307 @@
+{
+  "type": "lipshape",
+  "label": "Lip Shape",
+  "count": 10,
+  "assets": [
+    {
+      "id": "49919013",
+      "name": "lipShape01",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/49919013/1629122664-lipshape01-1699880639773.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape01",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-29T09:39:48.167Z",
+      "updatedAt": "2023-06-09T13:05:48.971Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    },
+    {
+      "id": "49919049",
+      "name": "lipShape02",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/49919049/1629122679-lipshape02-1699880639762.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape02",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-29T09:40:32.324Z",
+      "updatedAt": "2023-06-09T13:05:49.018Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    },
+    {
+      "id": "49919056",
+      "name": "lipShape03",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/49919056/1629122692-lipshape03-1699880639782.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape03",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-29T09:40:34.936Z",
+      "updatedAt": "2023-06-09T13:05:49.078Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    },
+    {
+      "id": "50094598",
+      "name": "lipShape04",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094598/1629122704-lipshape04-1699880641500.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape04",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:17:55.430Z",
+      "updatedAt": "2023-06-09T13:05:49.905Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    },
+    {
+      "id": "50094600",
+      "name": "lipShape05",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094600/1629122717-lipshape05-1699880642380.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape05",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:17:56.256Z",
+      "updatedAt": "2023-06-09T13:05:49.901Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    },
+    {
+      "id": "50094602",
+      "name": "lipShape06",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094602/1629122728-lipshape06-1699880642378.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape06",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:17:57.162Z",
+      "updatedAt": "2023-06-09T13:05:49.958Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    },
+    {
+      "id": "50094604",
+      "name": "lipShape07",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094604/1629122743-lipshape07-1699880642366.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape07",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:17:58.325Z",
+      "updatedAt": "2023-06-09T13:05:49.959Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    },
+    {
+      "id": "50094606",
+      "name": "lipShape08",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094606/1629122754-lipshape08-1699880642371.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape08",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:17:59.426Z",
+      "updatedAt": "2023-06-09T13:05:49.951Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    },
+    {
+      "id": "50094608",
+      "name": "lipShape09",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094608/1629122766-lipshape09-1699880642382.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape09",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:18:03.488Z",
+      "updatedAt": "2023-06-09T13:05:52.169Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    },
+    {
+      "id": "50094610",
+      "name": "lipShape10",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "lipshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094610/1629122777-lipshape10-1699880642376.png",
+      "faceBlendShapes": [
+        {
+          "name": "lipShape10",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:18:04.500Z",
+      "updatedAt": "2023-06-09T13:05:51.415Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "lipshape"
+    }
+  ]
+}

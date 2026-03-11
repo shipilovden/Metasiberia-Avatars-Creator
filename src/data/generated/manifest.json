@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-03-11T11:54:55.118Z",
-  "datasetCollectedAt": "2026-03-11T04:38:07.122Z",
-  "totalAssets": 547,
+  "generatedAt": "2026-03-11T12:22:17.904Z",
+  "datasetCollectedAt": "2026-03-11T12:17:22.716Z",
+  "totalAssets": 622,
   "source": {
     "subdomain": "demo",
     "appId": "6421563c21169e32c89017a0",
-    "userId": "69b0f1a9a491b44fc4c40ae0",
+    "userId": "69b15d4b373147d561c3b826",
     "bodyType": [
       "generic",
       "fullbody"
@@ -52,6 +52,36 @@
       "label": "Eyes",
       "count": 19,
       "file": "./types/eye.json"
+    },
+    {
+      "id": "eyeshape",
+      "label": "Eye Shape",
+      "count": 11,
+      "file": "./types/eyeshape.json"
+    },
+    {
+      "id": "eyebrows",
+      "label": "Eyebrows",
+      "count": 32,
+      "file": "./types/eyebrows.json"
+    },
+    {
+      "id": "faceshape",
+      "label": "Head Shape",
+      "count": 10,
+      "file": "./types/faceshape.json"
+    },
+    {
+      "id": "noseshape",
+      "label": "Nose Shape",
+      "count": 12,
+      "file": "./types/noseshape.json"
+    },
+    {
+      "id": "lipshape",
+      "label": "Lip Shape",
+      "count": 10,
+      "file": "./types/lipshape.json"
     },
     {
       "id": "glasses",
@@ -103,6 +133,20 @@
       ],
       "count": 149,
       "file": "./groups/face-hair.json"
+    },
+    {
+      "id": "face-shape",
+      "label": "Face Shapes",
+      "description": "Head and face shape controls",
+      "types": [
+        "faceshape",
+        "eyeshape",
+        "eyebrows",
+        "noseshape",
+        "lipshape"
+      ],
+      "count": 75,
+      "file": "./groups/face-shape.json"
     },
     {
       "id": "accessories",

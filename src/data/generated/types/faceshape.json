@@ -1,0 +1,307 @@
+{
+  "type": "faceshape",
+  "label": "Head Shape",
+  "count": 10,
+  "assets": [
+    {
+      "id": "49908697",
+      "name": "faceShape01",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/49908697/1629273269-faceshape01-1699880639779.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape01",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-29T06:45:36.126Z",
+      "updatedAt": "2023-06-09T13:05:46.519Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    },
+    {
+      "id": "49918702",
+      "name": "faceShape02",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/49918702/1629273304-faceshape02-1699880639765.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape02",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-29T09:36:01.131Z",
+      "updatedAt": "2023-06-09T13:05:46.520Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    },
+    {
+      "id": "49918708",
+      "name": "faceShape03",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/49918708/1629273319-faceshape03-1699880639754.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape03",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-29T09:37:11.376Z",
+      "updatedAt": "2023-06-09T13:05:48.576Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    },
+    {
+      "id": "50077385",
+      "name": "faceShape04",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50077385/1629273334-faceshape04-1699880640624.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape04",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:10:15.613Z",
+      "updatedAt": "2023-06-09T13:05:49.100Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    },
+    {
+      "id": "50094438",
+      "name": "faceShape05",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094438/1629273365-faceshape05-1699880640644.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape05",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:10:56.530Z",
+      "updatedAt": "2023-06-09T13:05:48.900Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    },
+    {
+      "id": "50094440",
+      "name": "faceShape06",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094440/1629273378-faceshape06-1699880640641.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape06",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:11:02.457Z",
+      "updatedAt": "2023-06-09T13:05:48.933Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    },
+    {
+      "id": "50094442",
+      "name": "faceShape07",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094442/1629273390-faceshape07-1699880640637.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape07",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:11:03.783Z",
+      "updatedAt": "2023-06-09T13:05:48.951Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    },
+    {
+      "id": "50094444",
+      "name": "faceShape08",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094444/1629273401-faceshape08-1699880640627.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape08",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:11:04.836Z",
+      "updatedAt": "2023-06-09T13:05:49.334Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    },
+    {
+      "id": "50094446",
+      "name": "faceShape09",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094446/1629273414-faceshape09-1699880640646.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape09",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:11:05.680Z",
+      "updatedAt": "2023-06-09T13:05:49.328Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    },
+    {
+      "id": "50094448",
+      "name": "faceShape10",
+      "organizationId": "642155db21169e32c890145c",
+      "locked": false,
+      "type": "faceshape",
+      "bodyType": "generic",
+      "editable": false,
+      "gender": "neutral",
+      "hasApps": true,
+      "iconUrl": "https://files.readyplayer.me/asset/iconUrl/50094448/1629273425-faceshape10-1699880640622.png",
+      "faceBlendShapes": [
+        {
+          "name": "faceShape10",
+          "value": 0.5
+        }
+      ],
+      "hairStyle": "",
+      "eyebrowStyle": "",
+      "eyeStyle": "",
+      "beardStyle": "",
+      "glassesStyle": "",
+      "lockedCategories": [],
+      "iconGlow": false,
+      "createdAt": "2021-07-30T09:11:06.491Z",
+      "updatedAt": "2023-06-09T13:05:49.360Z",
+      "isTemplate": false,
+      "removeSkin": true,
+      "__typeGroup": "faceshape"
+    }
+  ]
+}
