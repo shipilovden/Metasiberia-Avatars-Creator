@@ -7,6 +7,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "assets:sync-catalog": "node scripts/sync-asset-catalog.mjs",
     "assets:build": "node scripts/build-assets-manifest.mjs",
     "assets:download": "node scripts/download-local-library.mjs",
     "predev": "yarn assets:build",

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState } from "react";
+﻿import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import {
   ContactShadows,
@@ -11,7 +11,7 @@ import {
 import { Group, MOUSE, MeshStandardMaterial, SRGBColorSpace } from "three";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import assetSchema from "./config/asset-schema.json";
-import assetDataset from "./data/assets-441.json";
+import assetDataset from "./data/assets-catalog.json";
 import localAssetCapabilitiesManifest from "./data/generated/local-asset-capabilities.json";
 import localLibraryManifest from "./data/generated/local-library-manifest.json";
 
@@ -27,10 +27,15 @@ type SupportedType =
   | "beard"
   | "facewear";
 
+type UiGender = "male" | "female";
+type AssetGender = UiGender | "neutral";
+
 type AssetRecord = {
   id: string | number;
   name: string;
   type: SupportedType;
+  gender: AssetGender;
+  bodyType?: string;
   iconUrl?: string;
   maskUrl?: string;
   beardStyle?: string;
@@ -50,9 +55,31 @@ type LocalItem = {
   error: string | null;
 };
 
-type LocalLibraryManifest = {
+type LocalPreset = {
+  id: string;
+  label: string;
+  gender: UiGender;
+  templateId: string;
+  baseModelUrl: string | null;
+  previewUrl: string | null;
+};
+
+type LocalGenderLibrary = {
+  gender: UiGender;
+  defaultPresetId: string;
   baseModelUrl: string | null;
   items: LocalItem[];
+};
+
+type LocalLibraryManifest = {
+  libraries: Record<UiGender, LocalGenderLibrary>;
+  presets: Record<
+    UiGender,
+    {
+      defaultPresetId: string;
+      items: LocalPreset[];
+    }
+  >;
 };
 
 type LocalAssetCapabilitiesManifest = {
@@ -131,26 +158,90 @@ const UI_TEXT: Record<
   UiLocale,
   {
     next: string;
-    searchPlaceholder: string;
     clearSelection: string;
     settings: string;
+    male: string;
+    female: string;
+    preset: string;
+    hairColor: string;
+    beardColor?: string;
   }
 > = {
   ru: {
     next: "ДАЛЕЕ",
-    searchPlaceholder: "Поиск по имени или id",
     clearSelection: "Снять",
     settings: "Настройки",
+    male: "Муж",
+    female: "Жен",
+    preset: "База",
+    hairColor: "Цвет волос",
+    beardColor: "Цвет бороды",
   },
   en: {
     next: "NEXT",
-    searchPlaceholder: "Search by name or id",
     clearSelection: "Clear",
     settings: "Settings",
+    male: "Male",
+    female: "Female",
+    preset: "Base",
+    hairColor: "Hair color",
+    beardColor: "Beard color",
   },
 };
 
 const POSITION_OFFSET: [number, number, number] = [0, -1.06, 0];
+const HAIR_COLOR_SWATCHES = [
+  "#151515",
+  "#242424",
+  "#2d1f1a",
+  "#3b2a1f",
+  "#473225",
+  "#5b3b29",
+  "#6c4430",
+  "#7a4c30",
+  "#885437",
+  "#965733",
+  "#a76337",
+  "#b86b3b",
+  "#c97a3c",
+  "#d1863f",
+  "#df994a",
+  "#ebb04f",
+  "#f1c261",
+  "#f3d06f",
+  "#e9a95d",
+  "#de8e4e",
+  "#d8733f",
+  "#d34134",
+  "#cf3b51",
+  "#b93a67",
+  "#9d3d7b",
+  "#7f4a8f",
+  "#5e4d9f",
+  "#4155ae",
+  "#2e659f",
+  "#1f7389",
+  "#2c816f",
+  "#4d8a55",
+  "#739246",
+  "#9a8c40",
+  "#b3823f",
+  "#c4572e",
+  "#a83d24",
+  "#a48f66",
+  "#b09b77",
+  "#c2b289",
+  "#8d7964",
+  "#735f50",
+  "#5f4a41",
+  "#8b8b8b",
+  "#8f9394",
+  "#acb0b2",
+  "#c7cacb",
+  "#dddddd",
+  "#f2f2f2",
+] as const;
+
 const SLOT_NAMES = {
   body: "Wolf3D_Body",
   head: "Wolf3D_Head",
@@ -168,25 +259,73 @@ const SLOT_NAMES = {
 } as const;
 
 type MeshSlot = (typeof SLOT_NAMES)[keyof typeof SLOT_NAMES];
+type MeshTintMap = Partial<Record<string, string>>;
 
 const makeLookupKey = (type: string, id: string) => `${type}:${id}`;
-
 function AvatarModel({
   modelUrl,
   includeMeshes,
   hiddenMeshes,
+  tintByMesh,
 }: {
   modelUrl: string;
   includeMeshes?: readonly MeshSlot[];
   hiddenMeshes?: readonly MeshSlot[];
+  tintByMesh?: MeshTintMap;
 }) {
   const { scene } = useGLTF(modelUrl) as { scene: Group };
   const includeKey = includeMeshes?.join("|") || "";
   const hiddenKey = hiddenMeshes?.join("|") || "";
+  const tintKey = useMemo(
+    () =>
+      Object.entries(tintByMesh || {})
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([slot, color]) => `${slot}:${color}`)
+        .join("|"),
+    [tintByMesh]
+  );
 
   const preparedScene = useMemo(() => {
     const includeSet = includeMeshes ? new Set(includeMeshes) : null;
     const hiddenSet = new Set(hiddenMeshes || []);
+    const cloneMaterialWithTint = (material: unknown, tintColor: string): unknown => {
+      const tintOne = (entry: unknown): unknown => {
+        if (!entry || typeof entry !== "object") {
+          return entry;
+        }
+
+        const materialEntry = entry as {
+          clone?: () => unknown;
+          color?: { set?: (value: string) => void };
+          map?: unknown;
+        };
+
+        if (typeof materialEntry.clone !== "function") {
+          return entry;
+        }
+
+        const clonedMaterial = materialEntry.clone() as {
+          color?: { set?: (value: string) => void };
+          map?: unknown;
+          needsUpdate?: boolean;
+        };
+        // Full recolor: ignore baked albedo so selected color is not just a tint.
+        if ("map" in clonedMaterial) {
+          clonedMaterial.map = null;
+        }
+        clonedMaterial.color?.set?.(tintColor);
+        if ("needsUpdate" in clonedMaterial) {
+          clonedMaterial.needsUpdate = true;
+        }
+        return clonedMaterial;
+      };
+
+      if (Array.isArray(material)) {
+        return material.map((entry) => tintOne(entry));
+      }
+
+      return tintOne(material);
+    };
     const cloned = clone(scene) as Group;
 
     cloned.traverse((object) => {
@@ -196,6 +335,7 @@ function AvatarModel({
         receiveShadow?: boolean;
         visible?: boolean;
         name?: string;
+        material?: unknown;
       };
 
       if (!mesh.isMesh) {
@@ -207,16 +347,18 @@ function AvatarModel({
 
       if (includeSet) {
         mesh.visible = includeSet.has(mesh.name as MeshSlot);
-        return;
+      } else if (hiddenSet.size > 0) {
+        mesh.visible = !hiddenSet.has(mesh.name as MeshSlot);
       }
 
-      if (hiddenSet.size > 0) {
-        mesh.visible = !hiddenSet.has(mesh.name as MeshSlot);
+      const tintColor = mesh.name ? tintByMesh?.[mesh.name] : null;
+      if (tintColor && mesh.material) {
+        mesh.material = cloneMaterialWithTint(mesh.material, tintColor);
       }
     });
 
     return cloned;
-  }, [hiddenKey, includeKey, includeMeshes, hiddenMeshes, scene]);
+  }, [hiddenKey, includeKey, includeMeshes, hiddenMeshes, scene, tintByMesh, tintKey]);
 
   return <primitive object={preparedScene} position={POSITION_OFFSET} />;
 }
@@ -336,15 +478,14 @@ function App() {
     groups[0]?.types[0] || "top"
   );
   const [locale, setLocale] = useState<UiLocale>("ru");
+  const [selectedGender, setSelectedGender] = useState<UiGender>("male");
+  const [selectedPresetId, setSelectedPresetId] = useState("preset-1");
+  const [selectedHairColor, setSelectedHairColor] = useState<string>(HAIR_COLOR_SWATCHES[0]);
+  const [selectedBeardColor, setSelectedBeardColor] = useState<string>(HAIR_COLOR_SWATCHES[0]);
   const [selectedByType, setSelectedByType] = useState<
     Partial<Record<SupportedType, string>>
   >({});
-  const [searchTerm, setSearchTerm] = useState("");
-
-  const groupById = useMemo(
-    () => new Map(groups.map((group) => [group.id, group])),
-    []
-  );
+  const previousPresetRef = useRef("preset-1");
 
   const groupByType = useMemo(() => {
     const map = new Map<SupportedType, string>();
@@ -362,6 +503,20 @@ function App() {
     const browserLocale = navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
     setLocale(browserLocale);
   }, []);
+
+  const presetOptions = useMemo(
+    () => localLibrary.presets?.[selectedGender]?.items || [],
+    [selectedGender]
+  );
+
+  useEffect(() => {
+    const nextPresetId =
+      localLibrary.presets?.[selectedGender]?.defaultPresetId || presetOptions[0]?.id || "";
+
+    setSelectedPresetId((current) =>
+      presetOptions.some((preset) => preset.id === current) ? current : nextPresetId
+    );
+  }, [presetOptions, selectedGender]);
 
   const assetsByType = useMemo(() => {
     const grouped = new Map<SupportedType, AssetRecord[]>();
@@ -387,19 +542,40 @@ function App() {
   const localItemsByAsset = useMemo(() => {
     const map = new Map<string, LocalItem>();
 
-    for (const item of localLibrary.items || []) {
+    for (const item of localLibrary.libraries?.[selectedGender]?.items || []) {
       map.set(makeLookupKey(item.type, item.id), item);
     }
 
     return map;
-  }, []);
+  }, [selectedGender]);
 
-  const capabilityByAsset = useMemo(
-    () => new Map(Object.entries(localAssetCapabilities.items || {})),
-    []
-  );
+  const capabilityByAsset = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        meshes: string[];
+        hasBeard: boolean;
+        hasFacewear: boolean;
+        hasGlasses: boolean;
+        hasHair: boolean;
+        hasHeadwear: boolean;
+        hasTop: boolean;
+        hasBottom: boolean;
+        hasFootwear: boolean;
+      }
+    >();
 
-  const currentGroup = groupById.get(activeGroupId) || groups[0];
+    for (const [key, value] of Object.entries(localAssetCapabilities.items || {})) {
+      if (!key.startsWith(`${selectedGender}:`)) {
+        continue;
+      }
+
+      map.set(key.slice(selectedGender.length + 1), value);
+    }
+
+    return map;
+  }, [selectedGender]);
+
   const assetByKey = useMemo(
     () =>
       new Map(
@@ -407,6 +583,9 @@ function App() {
       ),
     []
   );
+
+  const isAssetAvailableForGender = (asset: AssetRecord) =>
+    asset.gender === "neutral" || asset.gender === selectedGender;
 
   const isAssetCompatibleWithType = (asset: AssetRecord) => {
     const capability = capabilityByAsset.get(makeLookupKey(asset.type, String(asset.id)));
@@ -432,16 +611,10 @@ function App() {
   };
 
   const visibleAssets = useMemo(() => {
-    const source = (assetsByType.get(activeType) || []).filter(isAssetCompatibleWithType);
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) return source;
-
-    return source.filter((asset) => {
-      const id = String(asset.id).toLowerCase();
-      const name = String(asset.name).toLowerCase();
-      return id.includes(query) || name.includes(query);
-    });
-  }, [activeType, assetsByType, capabilityByAsset, searchTerm]);
+    return (assetsByType.get(activeType) || []).filter(
+      (asset) => isAssetAvailableForGender(asset) && isAssetCompatibleWithType(asset)
+    );
+  }, [activeType, assetsByType, capabilityByAsset, selectedGender]);
 
   useEffect(() => {
     const nextGroupId = groupByType.get(activeType);
@@ -450,15 +623,45 @@ function App() {
     }
   }, [activeGroupId, activeType, groupByType]);
 
-  const selectedAssetId = selectedByType[activeType] || "";
+  useEffect(() => {
+    setSelectedByType((current) => {
+      let changed = false;
+      const next: Partial<Record<SupportedType, string>> = { ...current };
 
-  const selectedAsset = useMemo(
-    () =>
-      (assetsByType.get(activeType) || []).find(
-        (asset) => String(asset.id) === selectedAssetId
-      ) || null,
-    [activeType, assetsByType, selectedAssetId]
-  );
+      for (const [type, assetId] of Object.entries(current) as [SupportedType, string][]) {
+        const asset = assetByKey.get(makeLookupKey(type, assetId));
+        const localItem = localItemsByAsset.get(makeLookupKey(type, assetId));
+
+        if (!asset || !isAssetAvailableForGender(asset) || !localItem || localItem.error) {
+          delete next[type];
+          changed = true;
+        }
+      }
+
+      return changed ? next : current;
+    });
+  }, [assetByKey, localItemsByAsset, selectedGender]);
+
+  useEffect(() => {
+    if (previousPresetRef.current === selectedPresetId) {
+      return;
+    }
+
+    previousPresetRef.current = selectedPresetId;
+
+    setSelectedByType((current) => {
+      if (!current.beard && !current.facewear) {
+        return current;
+      }
+
+      const next: Partial<Record<SupportedType, string>> = { ...current };
+      delete next.beard;
+      delete next.facewear;
+      return next;
+    });
+  }, [selectedPresetId]);
+
+  const selectedAssetId = selectedByType[activeType] || "";
 
   const selectedLocalByType = useMemo(() => {
     const byType = new Map<SupportedType, LocalItem>();
@@ -486,6 +689,18 @@ function App() {
     return byType;
   }, [capabilityByAsset, localItemsByAsset, selectedByType]);
 
+  const selectedPreset =
+    presetOptions.find((preset) => preset.id === selectedPresetId) || presetOptions[0] || null;
+  const hairTintByMesh = useMemo<MeshTintMap>(
+    () => ({
+      [SLOT_NAMES.hair]: selectedHairColor,
+      "Wolf3D_Hair.001": selectedHairColor,
+      "hair-60": selectedHairColor,
+      low: selectedHairColor,
+      [SLOT_NAMES.beard]: selectedBeardColor,
+    }),
+    [selectedBeardColor, selectedHairColor]
+  );
   const composedScene = useMemo(() => {
     const slotOwners = new Map<MeshSlot, string>();
     const getUrl = (type: SupportedType) => selectedLocalByType.get(type)?.glbUrl || null;
@@ -618,6 +833,8 @@ function App() {
   };
 
   const copy = UI_TEXT[locale];
+  const colorPanelLabel =
+    activeType === "beard" ? copy.beardColor || copy.hairColor : copy.hairColor;
   const typeLabels = TYPE_LABELS[locale];
   const groupLabels = GROUP_LABELS[locale];
 
@@ -671,10 +888,11 @@ function App() {
             <directionalLight position={[-2.4, 1.8, -1.8]} intensity={0.42} />
 
             <Suspense fallback={<SceneLoader />}>
-              {localLibrary.baseModelUrl ? (
+              {selectedPreset?.baseModelUrl ? (
                 <AvatarModel
-                  modelUrl={localLibrary.baseModelUrl}
+                  modelUrl={selectedPreset.baseModelUrl}
                   hiddenMeshes={composedScene.hiddenBaseMeshes}
+                  tintByMesh={hairTintByMesh}
                 />
               ) : (
                 <PlaceholderAvatar />
@@ -685,6 +903,7 @@ function App() {
                   key={`${part.modelUrl}:${part.includeMeshes.join("|")}`}
                   modelUrl={part.modelUrl}
                   includeMeshes={part.includeMeshes}
+                  tintByMesh={hairTintByMesh}
                 />
               ))}
 
@@ -728,10 +947,72 @@ function App() {
             />
           </Canvas>
         </div>
+
+        {activeType === "hair" || activeType === "beard" ? (
+          <div className="hair-color-panel" aria-label={colorPanelLabel}>
+            {HAIR_COLOR_SWATCHES.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className={`hair-color-dot${(activeType === "beard" ? selectedBeardColor : selectedHairColor) === color ? " hair-color-dot--active" : ""}`}
+                onClick={() =>
+                  activeType === "beard"
+                    ? setSelectedBeardColor(color)
+                    : setSelectedHairColor(color)
+                }
+                style={{ background: color }}
+                title={color}
+                aria-label={`${colorPanelLabel} ${color}`}
+              />
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <aside className="asset-panel">
         <div className="asset-list-panel">
+          <div className="library-controls">
+            <div className="gender-switch">
+              {(["male", "female"] as UiGender[]).map((gender) => (
+                <button
+                  key={gender}
+                  type="button"
+                  className={`gender-btn${selectedGender === gender ? " gender-btn--active" : ""}`}
+                  onClick={() => setSelectedGender(gender)}
+                >
+                  {gender === "male" ? copy.male : copy.female}
+                </button>
+              ))}
+            </div>
+
+            <div className="preset-strip" aria-label={copy.preset}>
+              {presetOptions.map((preset, index) => {
+                const isActive = selectedPresetId === preset.id;
+
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={`preset-btn${isActive ? " preset-btn--active" : ""}`}
+                    onClick={() => setSelectedPresetId(preset.id)}
+                    title={`${copy.preset} ${index + 1}`}
+                  >
+                    {preset.previewUrl ? (
+                      <img
+                        src={preset.previewUrl}
+                        alt={`${copy.preset} ${index + 1}`}
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span className="preset-btn__fallback">{index + 1}</span>
+                    )}
+                    <span className="preset-btn__index">{index + 1}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="type-tabs">
             {allTypes.map((typeMeta) => (
               <button
@@ -744,15 +1025,6 @@ function App() {
               </button>
             ))}
           </div>
-
-          <label className="asset-search">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder={copy.searchPlaceholder}
-            />
-          </label>
 
           <div className="asset-grid">
             <button

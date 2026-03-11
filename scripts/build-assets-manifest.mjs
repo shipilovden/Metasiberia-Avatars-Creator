@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const SOURCE_DATASET = path.join("src", "data", "assets-441.json");
+const SOURCE_DATASET = path.join("src", "data", "assets-catalog.json");
 const SOURCE_SCHEMA = path.join("src", "config", "asset-schema.json");
 const SOURCE_LOCAL_LIBRARY = path.join(
   "src",
@@ -47,6 +47,9 @@ const inspectGlbMeshes = async (targetPath) => {
   const gltf = JSON.parse(jsonText);
   return Array.from(new Set((gltf.meshes || []).map((mesh) => mesh.name).filter(Boolean))).sort();
 };
+
+const toCapabilityKey = (gender, type, id) =>
+  `${String(gender)}:${String(type)}:${String(id)}`;
 
 const main = async () => {
   const dataset = await readJson(SOURCE_DATASET);
@@ -138,42 +141,46 @@ const main = async () => {
   await writeJson(path.join(OUTPUT_ROOT, "manifest.json"), manifest);
 
   const localLibrary = await readJsonSafe(SOURCE_LOCAL_LIBRARY);
-  if (Array.isArray(localLibrary?.items)) {
+  if (localLibrary?.libraries && typeof localLibrary.libraries === "object") {
     const capabilityItems = {};
 
-    for (const item of localLibrary.items) {
-      if (!item?.glbUrl) continue;
+    for (const [gender, library] of Object.entries(localLibrary.libraries)) {
+      const items = Array.isArray(library?.items) ? library.items : [];
 
-      const absoluteGlbPath = path.join(
-        "public",
-        item.glbUrl.replace(/^\/+local-assets\//, "local-assets/")
-      );
+      for (const item of items) {
+        if (!item?.glbUrl) continue;
 
-      try {
-        const meshes = await inspectGlbMeshes(absoluteGlbPath);
-        capabilityItems[`${item.type}:${item.id}`] = {
-          meshes,
-          hasBeard: meshes.includes("Wolf3D_Beard"),
-          hasFacewear: meshes.includes("Wolf3D_Facewear"),
-          hasGlasses: meshes.includes("Wolf3D_Glasses"),
-          hasHair: meshes.includes("Wolf3D_Hair"),
-          hasHeadwear: meshes.includes("Wolf3D_Headwear"),
-          hasTop: meshes.includes("Wolf3D_Outfit_Top"),
-          hasBottom: meshes.includes("Wolf3D_Outfit_Bottom"),
-          hasFootwear: meshes.includes("Wolf3D_Outfit_Footwear"),
-        };
-      } catch {
-        capabilityItems[`${item.type}:${item.id}`] = {
-          meshes: [],
-          hasBeard: false,
-          hasFacewear: false,
-          hasGlasses: false,
-          hasHair: false,
-          hasHeadwear: false,
-          hasTop: false,
-          hasBottom: false,
-          hasFootwear: false,
-        };
+        const absoluteGlbPath = path.join(
+          "public",
+          item.glbUrl.replace(/^\/+local-assets\//, "local-assets/")
+        );
+
+        try {
+          const meshes = await inspectGlbMeshes(absoluteGlbPath);
+          capabilityItems[toCapabilityKey(gender, item.type, item.id)] = {
+            meshes,
+            hasBeard: meshes.includes("Wolf3D_Beard"),
+            hasFacewear: meshes.includes("Wolf3D_Facewear"),
+            hasGlasses: meshes.includes("Wolf3D_Glasses"),
+            hasHair: meshes.includes("Wolf3D_Hair"),
+            hasHeadwear: meshes.includes("Wolf3D_Headwear"),
+            hasTop: meshes.includes("Wolf3D_Outfit_Top"),
+            hasBottom: meshes.includes("Wolf3D_Outfit_Bottom"),
+            hasFootwear: meshes.includes("Wolf3D_Outfit_Footwear"),
+          };
+        } catch {
+          capabilityItems[toCapabilityKey(gender, item.type, item.id)] = {
+            meshes: [],
+            hasBeard: false,
+            hasFacewear: false,
+            hasGlasses: false,
+            hasHair: false,
+            hasHeadwear: false,
+            hasTop: false,
+            hasBottom: false,
+            hasFootwear: false,
+          };
+        }
       }
     }
 

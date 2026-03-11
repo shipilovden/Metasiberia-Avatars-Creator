@@ -42,6 +42,59 @@ body {
   inset: 0;
 }
 
+.hair-color-panel {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 8;
+  width: 64px;
+  max-height: 72vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  padding: 10px 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  scrollbar-width: thin;
+  scrollbar-color: #888 #efefef;
+}
+
+.hair-color-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.hair-color-panel::-webkit-scrollbar-track {
+  background: #efefef;
+  border-radius: 999px;
+}
+
+.hair-color-panel::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 999px;
+  border: 1px solid #efefef;
+}
+
+.hair-color-dot {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.88);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.hair-color-dot:hover {
+  transform: translateY(-1px);
+}
+
+.hair-color-dot--active {
+  box-shadow: 0 0 0 2px #00d9e8, 0 0 0 3px rgba(0, 0, 0, 0.4);
+}
+
 .stage-toolbar {
   position: absolute;
   top: 16px;
@@ -177,6 +230,101 @@ body {
   overflow: hidden;
 }
 
+.library-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.gender-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gender-btn,
+.preset-btn {
+  border: 1px solid #191919;
+  background: #ffffff;
+  cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease, border-color 120ms ease;
+}
+
+.gender-btn:hover,
+.preset-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.gender-btn {
+  min-height: 38px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #171717;
+}
+
+.gender-btn--active {
+  background: linear-gradient(180deg, #1f1f1f 0%, #000000 100%);
+  color: #ffffff;
+}
+
+.preset-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.preset-btn {
+  position: relative;
+  min-height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 0;
+  background: linear-gradient(180deg, #fefefe 0%, #ebebeb 100%);
+}
+
+.preset-btn img,
+.preset-btn__fallback {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.preset-btn img {
+  object-fit: cover;
+}
+
+.preset-btn__fallback {
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: #262626;
+}
+
+.preset-btn__index {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  font-size: 10px;
+  font-weight: 800;
+  color: #101010;
+}
+
+.preset-btn--active {
+  border-color: #00d9e8;
+  box-shadow: 0 0 0 1px rgba(0, 217, 232, 0.42) inset;
+}
+
 .type-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -204,22 +352,6 @@ body {
 
 .tab-btn--active {
   background: linear-gradient(180deg, #ffe081 0%, #ffc84e 100%);
-}
-
-.asset-search input {
-  width: 100%;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid #212121;
-  background: #ffffff;
-  color: #181818;
-  font-size: 12px;
-  padding: 0 12px;
-  outline: none;
-}
-
-.asset-search input::placeholder {
-  color: #6f6f6f;
 }
 
 .asset-grid {
@@ -347,6 +479,10 @@ body {
     grid-template-columns: minmax(0, 1fr) 392px;
   }
 
+  .preset-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .asset-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -365,6 +501,22 @@ body {
 
   .asset-panel {
     grid-template-columns: minmax(0, 1fr) 68px;
+  }
+
+  .hair-color-panel {
+    left: 10px;
+    top: auto;
+    bottom: 10px;
+    transform: none;
+    width: min(86vw, 420px);
+    max-height: none;
+    grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .preset-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .category-rail {

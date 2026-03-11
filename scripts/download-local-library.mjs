@@ -1,11 +1,24 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
+import {
+  DEFAULT_APP_NAME,
+  PRESET_SPECS,
+  SUPPORTED_GENDERS,
+  SUPPORTED_TYPES,
+} from "./library-config.mjs";
 
-const DATASET_PATH = path.join("src", "data", "assets-441.json");
+const DATASET_PATH = path.join("src", "data", "assets-catalog.json");
 const OUTPUT_ROOT = path.join("public", "local-assets");
 const OUTPUT_GLB_ROOT = path.join(OUTPUT_ROOT, "glb");
 const OUTPUT_ICON_ROOT = path.join(OUTPUT_ROOT, "icons");
 const OUTPUT_BASE_ROOT = path.join(OUTPUT_ROOT, "base");
+const OUTPUT_PRESET_ROOT = path.join(OUTPUT_ROOT, "presets");
 const MANIFEST_PATH = path.join(
   "src",
   "data",
@@ -28,8 +41,7 @@ const TYPE_TO_AVATAR_ASSET_KEY = {
   facewear: "facewear",
 };
 
-const SUPPORTED_TYPES = new Set(Object.keys(TYPE_TO_AVATAR_ASSET_KEY));
-const makeLookupKey = (type, id) => `${String(type)}:${String(id)}`;
+const LEGACY_DEFAULT_BASE = path.join(OUTPUT_BASE_ROOT, "default.glb");
 
 const args = process.argv.slice(2);
 const hasFlag = (name) => args.includes(name);
@@ -268,27 +280,174 @@ const applyAssetToAvatarAssets = ({ type, assetId, baseAssets }) => {
   return next;
 };
 
-const downloadIcon = async ({ iconUrl, targetPath, force }) => {
-  if (!iconUrl) return null;
+const downloadBinary = async ({ url, targetPath, force }) => {
+  if (!url) return null;
   if (!force && (await fileExists(targetPath))) {
     return targetPath;
   }
 
-  const response = await makeRequest(iconUrl, { method: "GET" });
-  const iconBuffer = Buffer.from(await response.arrayBuffer());
-  await writeFile(targetPath, iconBuffer);
+  const response = await makeRequest(url, { method: "GET" });
+  const buffer = Buffer.from(await response.arrayBuffer());
+  await ensureDir(path.dirname(targetPath));
+  await writeFile(targetPath, buffer);
   return targetPath;
 };
 
+const getTemplateImageName = (template) => {
+  const sourceUrl = template?.imageUrl || template?.iconUrl || "";
+
+  try {
+    return path.basename(new URL(sourceUrl).pathname);
+  } catch {
+    return "";
+  }
+};
+
+const selectPresetTemplates = (templates, gender) => {
+  const candidates = (templates || []).filter((template) => template.gender === gender);
+  const selected = [];
+  const used = new Set();
+
+  for (const presetSpec of PRESET_SPECS[gender] || []) {
+    const match = candidates.find(
+      (template) =>
+        !used.has(template.id) && getTemplateImageName(template) === presetSpec.imageHint
+    );
+
+    if (!match) continue;
+    used.add(match.id);
+    selected.push({
+      ...presetSpec,
+      templateId: match.id,
+      previewSourceUrl: match.imageUrl || match.iconUrl || null,
+    });
+  }
+
+  for (const template of candidates) {
+    if (selected.length >= (PRESET_SPECS[gender] || []).length) {
+      break;
+    }
+
+    if (used.has(template.id)) {
+      continue;
+    }
+
+    const presetSpec = PRESET_SPECS[gender][selected.length];
+    used.add(template.id);
+    selected.push({
+      ...presetSpec,
+      templateId: template.id,
+      previewSourceUrl: template.imageUrl || template.iconUrl || null,
+    });
+  }
+
+  return selected;
+};
+
+const getLibraryLookupKey = (gender, type, id) =>
+  `${String(gender)}:${String(type)}:${String(id)}`;
+
+const buildExistingItemMap = (existingManifest) => {
+  const map = new Map();
+  const libraries = existingManifest?.libraries || {};
+
+  for (const [gender, library] of Object.entries(libraries)) {
+    const items = Array.isArray(library?.items) ? library.items : [];
+    for (const item of items) {
+      map.set(getLibraryLookupKey(gender, item.type, item.id), item);
+    }
+  }
+
+  return map;
+};
+
+const getGenderAssetPath = ({ gender, type, fileId }) =>
+  path.join(OUTPUT_GLB_ROOT, gender, type, `${fileId}.glb`);
+
+const getGenderAssetUrl = ({ gender, type, fileId }) =>
+  `/local-assets/glb/${gender}/${type}/${fileId}.glb`;
+
+const getLegacyMaleAssetPath = ({ type, fileId }) =>
+  path.join(OUTPUT_GLB_ROOT, type, `${fileId}.glb`);
+
+const getSharedIconPath = ({ type, fileId, ext }) =>
+  path.join(OUTPUT_ICON_ROOT, type, `${fileId}${ext}`);
+
+const getSharedIconUrl = ({ type, fileId, ext }) =>
+  `/local-assets/icons/${type}/${fileId}${ext}`;
+
+const getPresetBasePath = ({ gender, presetId }) =>
+  path.join(OUTPUT_BASE_ROOT, gender, `${presetId}.glb`);
+
+const getPresetBaseUrl = ({ gender, presetId }) =>
+  `/local-assets/base/${gender}/${presetId}.glb`;
+
+const getPresetPreviewPath = ({ gender, presetId, ext }) =>
+  path.join(OUTPUT_PRESET_ROOT, gender, `${presetId}${ext}`);
+
+const getPresetPreviewUrl = ({ gender, presetId, ext }) =>
+  `/local-assets/presets/${gender}/${presetId}${ext}`;
+
+const createAvatarSession = async ({ token, userId, templateId, appName }) => {
+  const avatarResponse = await createAvatarFromTemplate({
+    token,
+    userId,
+    templateId,
+    appName,
+  });
+
+  const avatarId = avatarResponse?.data?.id;
+  const baseAssets = avatarResponse?.data?.assets || {};
+  if (!avatarId) {
+    throw new Error(`Failed to create avatar from template ${templateId}.`);
+  }
+
+  return {
+    avatarId,
+    baseAssets,
+    exportUrl: getExportUrl(avatarId),
+  };
+};
+
+const savePresetBase = async ({ session, token, targetPath }) => {
+  await ensureDir(path.dirname(targetPath));
+
+  const glbBuffer = await patchGlb(
+    session.exportUrl,
+    { data: { assets: session.baseAssets } },
+    { Authorization: `Bearer ${token}` }
+  );
+
+  await writeFile(targetPath, glbBuffer);
+};
+
 const main = async () => {
-  const appName = readArg("--app-name", "demo");
+  const appName = readArg("--app-name", DEFAULT_APP_NAME);
   const wantedType = readArg("--type", "").trim().toLowerCase();
   const wantedIdsRaw = readArg("--id", "").trim();
   const limitRaw = readArg("--limit", "");
-  const limit = limitRaw ? Number.parseInt(limitRaw, 10) : null;
   const force = hasFlag("--force");
   const skipIcons = hasFlag("--skip-icons");
-  const templateGender = readArg("--template-gender", "male");
+  const genderArg = readArg("--gender", "male,female");
+
+  const limit = limitRaw ? Number.parseInt(limitRaw, 10) : null;
+  if (limitRaw && (!Number.isFinite(limit) || limit <= 0)) {
+    throw new Error(`Invalid --limit value: ${limitRaw}`);
+  }
+
+  const requestedGenders = genderArg
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  const genders = requestedGenders.length
+    ? requestedGenders.filter((gender) => SUPPORTED_GENDERS.includes(gender))
+    : [...SUPPORTED_GENDERS];
+
+  if (genders.length === 0) {
+    throw new Error(`Unknown --gender value: ${genderArg}`);
+  }
+
   const wantedIds = new Set(
     wantedIdsRaw
       ? wantedIdsRaw
@@ -298,47 +457,32 @@ const main = async () => {
       : []
   );
 
-  if (limitRaw && (!Number.isFinite(limit) || limit <= 0)) {
-    throw new Error(`Invalid --limit value: ${limitRaw}`);
+  if (wantedType && !SUPPORTED_TYPES.includes(wantedType)) {
+    throw new Error(`Unknown --type value: ${wantedType}`);
   }
 
   const dataset = await readJson(DATASET_PATH);
-  const sourceAssets = dataset.assets.filter((asset) => SUPPORTED_TYPES.has(asset.type));
+  const sourceAssets = dataset.assets.filter((asset) => SUPPORTED_TYPES.includes(asset.type));
   if (sourceAssets.length === 0) {
-    throw new Error("No supported assets found in dataset.");
-  }
-
-  let filteredAssets = sourceAssets;
-  if (wantedType) {
-    if (!SUPPORTED_TYPES.has(wantedType)) {
-      throw new Error(`Unknown --type value: ${wantedType}`);
-    }
-    filteredAssets = sourceAssets.filter((asset) => asset.type === wantedType);
-  }
-
-  if (wantedIds.size > 0) {
-    filteredAssets = filteredAssets.filter((asset) => wantedIds.has(String(asset.id)));
-  }
-
-  if (limit) {
-    filteredAssets = filteredAssets.slice(0, limit);
+    throw new Error(
+      `No supported assets found in dataset ${DATASET_PATH}. Run yarn assets:sync-catalog first.`
+    );
   }
 
   await ensureDir(OUTPUT_ROOT);
   await ensureDir(OUTPUT_GLB_ROOT);
   await ensureDir(OUTPUT_ICON_ROOT);
   await ensureDir(OUTPUT_BASE_ROOT);
+  await ensureDir(OUTPUT_PRESET_ROOT);
   await ensureDir(path.dirname(MANIFEST_PATH));
 
   const existingManifest = await readJsonSafe(MANIFEST_PATH);
-  const existingItems = Array.isArray(existingManifest?.items)
-    ? existingManifest.items
-    : [];
-  const existingItemsByKey = new Map(
-    existingItems.map((item) => [makeLookupKey(item.type, item.id), item])
-  );
+  const existingItemsByKey = buildExistingItemMap(existingManifest);
+  const nextLibraries = { ...(existingManifest?.libraries || {}) };
+  const nextPresets = { ...(existingManifest?.presets || {}) };
 
-  console.log(`Selected assets: ${filteredAssets.length}`);
+  console.log(`Catalog assets: ${sourceAssets.length}`);
+  console.log(`Requested genders: ${genders.join(", ")}`);
   console.log(`Type filter: ${wantedType || "all"}`);
   console.log(`Output root: ${OUTPUT_ROOT}`);
 
@@ -351,168 +495,259 @@ const main = async () => {
     throw new Error("No avatar templates returned from API.");
   }
 
-  const selectedTemplate =
-    templates.find((template) => template.gender === templateGender) || templates[0];
-  console.log(
-    `Using template ${selectedTemplate.id} (gender=${selectedTemplate.gender || "unknown"})`
-  );
+  const defaultSessionsByGender = new Map();
 
-  const avatarResponse = await createAvatarFromTemplate({
-    token,
-    userId,
-    templateId: selectedTemplate.id,
-    appName,
-  });
-
-  const avatarId = avatarResponse?.data?.id;
-  const baseAssets = avatarResponse?.data?.assets || {};
-  if (!avatarId) {
-    throw new Error("Failed to create base avatar.");
-  }
-
-  console.log(`Created avatar: ${avatarId}`);
-
-  const exportUrl = getExportUrl(avatarId);
-
-  const baseGlbPath = path.join(OUTPUT_BASE_ROOT, "default.glb");
-  let baseModelUrl = "/local-assets/base/default.glb";
-  if (force || !(await fileExists(baseGlbPath))) {
-    try {
-      const defaultGlb = await patchGlb(
-        exportUrl,
-        { data: { assets: baseAssets } },
-        { Authorization: `Bearer ${token}` }
-      );
-      await writeFile(baseGlbPath, defaultGlb);
-      console.log("Saved base avatar glb.");
-    } catch (error) {
-      if (await fileExists(baseGlbPath)) {
-        console.warn("Base avatar export failed, using existing default.glb.");
-      } else {
-        baseModelUrl = null;
-        console.warn("Base avatar export failed and no previous default.glb exists.");
-        console.warn(error instanceof Error ? error.message : String(error));
-      }
-    }
-  } else {
-    console.log("Base avatar glb already exists, skipping.");
-  }
-
-  const updatedItemsByKey = new Map(existingItemsByKey);
-
-  let downloadedInRun = 0;
-
-  for (let index = 0; index < filteredAssets.length; index += 1) {
-    const asset = filteredAssets[index];
-    const id = String(asset.id);
-    const type = String(asset.type);
-    const itemKey = makeLookupKey(type, id);
-    const typeDir = path.join(OUTPUT_GLB_ROOT, type);
-    const iconTypeDir = path.join(OUTPUT_ICON_ROOT, type);
-    await ensureDir(typeDir);
-    await ensureDir(iconTypeDir);
-
-    const fileId = encodeURIComponent(id);
-    const glbPath = path.join(typeDir, `${fileId}.glb`);
-    const iconExt = asset.iconUrl ? parseExtensionFromUrl(asset.iconUrl) : ".png";
-    const iconPath = path.join(iconTypeDir, `${fileId}${iconExt}`);
-
-    const previousItem = existingItemsByKey.get(itemKey) || null;
-    const manifestEntry = {
-      id,
-      name: String(asset.name || ""),
-      type,
-      fileId,
-      glbUrl: `/local-assets/glb/${type}/${fileId}.glb`,
-      iconUrl: null,
-      sourceIconUrl: asset.iconUrl || null,
-      downloadedAt: previousItem?.downloadedAt || null,
-      error: null,
-    };
-
-    if (await fileExists(iconPath)) {
-      manifestEntry.iconUrl = `/local-assets/icons/${type}/${fileId}${iconExt}`;
-    } else if (previousItem?.iconUrl) {
-      manifestEntry.iconUrl = previousItem.iconUrl;
+  for (const gender of genders) {
+    const presetTemplates = selectPresetTemplates(templates, gender);
+    if (presetTemplates.length === 0) {
+      throw new Error(`No templates resolved for gender ${gender}.`);
     }
 
-    const progressLabel = `[${index + 1}/${filteredAssets.length}] ${type}:${id}`;
+    const defaultPreset = presetTemplates[0];
+    const defaultSession = await createAvatarSession({
+      token,
+      userId,
+      templateId: defaultPreset.templateId,
+      appName,
+    });
+    defaultSessionsByGender.set(gender, defaultSession);
 
-    try {
-      if (force || !(await fileExists(glbPath))) {
-        const nextAssets = applyAssetToAvatarAssets({
-          type,
-          assetId: id,
-          baseAssets,
-        });
+    const presetManifestItems = [];
 
-        const glbBuffer = await patchGlb(
-          exportUrl,
-          { data: { assets: nextAssets } },
-          { Authorization: `Bearer ${token}` }
-        );
-        await writeFile(glbPath, glbBuffer);
-        await sleep(220);
-      }
+    for (const preset of presetTemplates) {
+      const previewExt = preset.previewSourceUrl
+        ? parseExtensionFromUrl(preset.previewSourceUrl)
+        : ".png";
+      const previewPath = getPresetPreviewPath({
+        gender,
+        presetId: preset.id,
+        ext: previewExt,
+      });
+      const basePath = getPresetBasePath({ gender, presetId: preset.id });
 
-      if (!skipIcons && asset.iconUrl) {
-        await downloadIcon({
-          iconUrl: asset.iconUrl,
-          targetPath: iconPath,
+      if (preset.previewSourceUrl) {
+        await downloadBinary({
+          url: preset.previewSourceUrl,
+          targetPath: previewPath,
           force,
         });
+      }
 
-        if (await fileExists(iconPath)) {
-          manifestEntry.iconUrl = `/local-assets/icons/${type}/${fileId}${iconExt}`;
+      if (preset.id === "preset-1" && gender === "male") {
+        if (force || !(await fileExists(basePath))) {
+          if (!force && (await fileExists(LEGACY_DEFAULT_BASE))) {
+            await ensureDir(path.dirname(basePath));
+            await copyFile(LEGACY_DEFAULT_BASE, basePath);
+          } else {
+            await savePresetBase({
+              session: defaultSession,
+              token,
+              targetPath: basePath,
+            });
+          }
+        }
+      } else if (force || !(await fileExists(basePath))) {
+        if (preset.id === "preset-1") {
+          await savePresetBase({
+            session: defaultSession,
+            token,
+            targetPath: basePath,
+          });
+        } else {
+          const presetSession = await createAvatarSession({
+            token,
+            userId,
+            templateId: preset.templateId,
+            appName,
+          });
+          await savePresetBase({
+            session: presetSession,
+            token,
+            targetPath: basePath,
+          });
         }
       }
 
-      manifestEntry.downloadedAt = new Date().toISOString();
-      downloadedInRun += 1;
-      console.log(`${progressLabel} OK`);
-    } catch (error) {
-      manifestEntry.error =
-        error instanceof Error ? error.message : "Unknown download error";
-      console.warn(`${progressLabel} FAILED`);
-      console.warn(manifestEntry.error);
+      presetManifestItems.push({
+        id: preset.id,
+        label: preset.label,
+        gender,
+        templateId: preset.templateId,
+        baseModelUrl: getPresetBaseUrl({ gender, presetId: preset.id }),
+        previewUrl: preset.previewSourceUrl
+          ? getPresetPreviewUrl({
+              gender,
+              presetId: preset.id,
+              ext: previewExt,
+            })
+          : null,
+      });
     }
 
-    updatedItemsByKey.set(itemKey, manifestEntry);
+    nextPresets[gender] = {
+      defaultPresetId: "preset-1",
+      items: presetManifestItems,
+    };
   }
 
-  const manifestItems = Array.from(updatedItemsByKey.values()).sort((left, right) => {
-    const typeCompare = String(left.type).localeCompare(String(right.type));
-    if (typeCompare !== 0) return typeCompare;
-    return String(left.name).localeCompare(String(right.name));
-  });
+  for (const gender of genders) {
+    const filteredAssets = sourceAssets
+      .filter((asset) => asset.gender === "neutral" || asset.gender === gender)
+      .filter((asset) => !wantedType || asset.type === wantedType)
+      .filter((asset) => wantedIds.size === 0 || wantedIds.has(String(asset.id)));
 
-  const totalsByType = {};
-  for (const item of manifestItems) {
-    if (!item.downloadedAt || item.error) continue;
-    totalsByType[item.type] = (totalsByType[item.type] || 0) + 1;
+    const assetsToProcess = limit ? filteredAssets.slice(0, limit) : filteredAssets;
+    const defaultSession = defaultSessionsByGender.get(gender);
+    if (!defaultSession) {
+      throw new Error(`Missing default avatar session for gender ${gender}.`);
+    }
+
+    console.log(`Processing ${gender}: ${assetsToProcess.length} assets`);
+
+    const manifestItems = [];
+    let downloadedInRun = 0;
+
+    for (let index = 0; index < assetsToProcess.length; index += 1) {
+      const asset = assetsToProcess[index];
+      const id = String(asset.id);
+      const type = String(asset.type);
+      const fileId = encodeURIComponent(id);
+      const itemKey = getLibraryLookupKey(gender, type, id);
+
+      const glbPath = getGenderAssetPath({ gender, type, fileId });
+      const glbUrl = getGenderAssetUrl({ gender, type, fileId });
+      const legacyGlbPath = getLegacyMaleAssetPath({ type, fileId });
+
+      const iconExt = asset.iconUrl ? parseExtensionFromUrl(asset.iconUrl) : ".png";
+      const iconPath = getSharedIconPath({ type, fileId, ext: iconExt });
+
+      await ensureDir(path.dirname(glbPath));
+      await ensureDir(path.dirname(iconPath));
+
+      const previousItem = existingItemsByKey.get(itemKey) || null;
+      const manifestEntry = {
+        id,
+        name: String(asset.name || ""),
+        type,
+        gender: asset.gender || null,
+        bodyType: asset.bodyType || null,
+        fileId,
+        glbUrl,
+        iconUrl: null,
+        sourceIconUrl: asset.iconUrl || null,
+        downloadedAt: previousItem?.downloadedAt || null,
+        error: null,
+      };
+
+      if (await fileExists(iconPath)) {
+        manifestEntry.iconUrl = getSharedIconUrl({ type, fileId, ext: iconExt });
+      } else if (previousItem?.iconUrl) {
+        manifestEntry.iconUrl = previousItem.iconUrl;
+      }
+
+      const progressLabel = `[${gender} ${index + 1}/${assetsToProcess.length}] ${type}:${id}`;
+
+      try {
+        if (force || !(await fileExists(glbPath))) {
+          if (
+            gender === "male" &&
+            !force &&
+            (await fileExists(legacyGlbPath)) &&
+            !(await fileExists(glbPath))
+          ) {
+            await copyFile(legacyGlbPath, glbPath);
+          } else {
+            const nextAssets = applyAssetToAvatarAssets({
+              type,
+              assetId: id,
+              baseAssets: defaultSession.baseAssets,
+            });
+
+            const glbBuffer = await patchGlb(
+              defaultSession.exportUrl,
+              { data: { assets: nextAssets } },
+              { Authorization: `Bearer ${token}` }
+            );
+
+            await writeFile(glbPath, glbBuffer);
+            await sleep(220);
+          }
+        }
+
+        if (!skipIcons && asset.iconUrl) {
+          await downloadBinary({
+            url: asset.iconUrl,
+            targetPath: iconPath,
+            force,
+          });
+
+          if (await fileExists(iconPath)) {
+            manifestEntry.iconUrl = getSharedIconUrl({ type, fileId, ext: iconExt });
+          }
+        }
+
+        manifestEntry.downloadedAt = new Date().toISOString();
+        downloadedInRun += 1;
+        console.log(`${progressLabel} OK`);
+      } catch (error) {
+        manifestEntry.error =
+          error instanceof Error ? error.message : "Unknown download error";
+        console.warn(`${progressLabel} FAILED`);
+        console.warn(manifestEntry.error);
+      }
+
+      manifestItems.push(manifestEntry);
+    }
+
+    manifestItems.sort((left, right) => {
+      const typeCompare = String(left.type).localeCompare(String(right.type));
+      if (typeCompare !== 0) return typeCompare;
+
+      const nameCompare = String(left.name).localeCompare(String(right.name));
+      if (nameCompare !== 0) return nameCompare;
+
+      return String(left.id).localeCompare(String(right.id));
+    });
+
+    const totalsByType = {};
+    for (const item of manifestItems) {
+      if (!item.downloadedAt || item.error) continue;
+      totalsByType[item.type] = (totalsByType[item.type] || 0) + 1;
+    }
+
+    const downloadedCount = manifestItems.filter(
+      (item) => Boolean(item.downloadedAt) && !item.error
+    ).length;
+
+    nextLibraries[gender] = {
+      gender,
+      defaultPresetId: nextPresets[gender]?.defaultPresetId || "preset-1",
+      baseModelUrl:
+        nextPresets[gender]?.items?.find((preset) => preset.id === "preset-1")
+          ?.baseModelUrl || null,
+      totalSelected: manifestItems.length,
+      totalInLastRun: assetsToProcess.length,
+      totalDownloaded: downloadedCount,
+      totalsByType,
+      items: manifestItems,
+    };
+
+    console.log(
+      `Finished ${gender}. Run downloaded ${downloadedInRun}/${assetsToProcess.length}.`
+    );
   }
-
-  const downloadedCount = manifestItems.filter(
-    (item) => Boolean(item.downloadedAt) && !item.error
-  ).length;
 
   const localManifest = {
     generatedAt: new Date().toISOString(),
     sourceCollectedAt: dataset.collectedAt,
     appName,
-    baseModelUrl,
-    totalSelected: manifestItems.length,
-    totalInLastRun: filteredAssets.length,
-    totalDownloaded: downloadedCount,
-    totalsByType,
-    items: manifestItems,
+    totalCatalogAssets: dataset.assets.length,
+    libraries: nextLibraries,
+    presets: nextPresets,
   };
 
   await writeJson(MANIFEST_PATH, localManifest);
-
-  console.log(
-    `Done. Run downloaded ${downloadedInRun}/${filteredAssets.length}. Total downloaded ${downloadedCount}/${manifestItems.length}. Manifest: ${MANIFEST_PATH}`
-  );
+  console.log(`Manifest written to ${MANIFEST_PATH}`);
 };
 
 main().catch((error) => {

@@ -1,17 +1,18 @@
 {
-  "generatedAt": "2026-03-11T02:23:42.301Z",
-  "datasetCollectedAt": "2026-03-10T08:42:20.5819696+07:00",
-  "totalAssets": 441,
+  "generatedAt": "2026-03-11T11:54:55.118Z",
+  "datasetCollectedAt": "2026-03-11T04:38:07.122Z",
+  "totalAssets": 547,
   "source": {
     "subdomain": "demo",
     "appId": "6421563c21169e32c89017a0",
-    "userId": "69af7667373147d561c2f112",
+    "userId": "69b0f1a9a491b44fc4c40ae0",
     "bodyType": [
       "generic",
       "fullbody"
     ],
     "gender": [
       "male",
+      "female",
       "neutral"
     ]
   },
@@ -37,7 +38,7 @@
     {
       "id": "outfit",
       "label": "Outfits",
-      "count": 98,
+      "count": 198,
       "file": "./types/outfit.json"
     },
     {
@@ -61,7 +62,7 @@
     {
       "id": "headwear",
       "label": "Headwear",
-      "count": 38,
+      "count": 44,
       "file": "./types/headwear.json"
     },
     {
@@ -88,7 +89,7 @@
         "footwear",
         "outfit"
       ],
-      "count": 179,
+      "count": 279,
       "file": "./groups/clothing.json"
     },
     {
@@ -112,7 +113,7 @@
         "headwear",
         "facewear"
       ],
-      "count": 113,
+      "count": 119,
       "file": "./groups/accessories.json"
     }
   ]
