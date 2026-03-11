@@ -1,0 +1,34 @@
+{
+  "types": [
+    { "id": "top", "label": "Tops" },
+    { "id": "bottom", "label": "Bottoms" },
+    { "id": "footwear", "label": "Footwear" },
+    { "id": "outfit", "label": "Outfits" },
+    { "id": "hair", "label": "Hair" },
+    { "id": "eye", "label": "Eyes" },
+    { "id": "glasses", "label": "Glasses" },
+    { "id": "headwear", "label": "Headwear" },
+    { "id": "beard", "label": "Beard" },
+    { "id": "facewear", "label": "Facewear" }
+  ],
+  "groups": [
+    {
+      "id": "clothing",
+      "label": "Clothing",
+      "description": "Core outfit parts and full outfits",
+      "types": ["top", "bottom", "footwear", "outfit"]
+    },
+    {
+      "id": "face-hair",
+      "label": "Face & Hair",
+      "description": "Hair, beard and eyes",
+      "types": ["hair", "beard", "eye"]
+    },
+    {
+      "id": "accessories",
+      "label": "Accessories",
+      "description": "Wearables and face accessories",
+      "types": ["glasses", "headwear", "facewear"]
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "generatedAt": "2026-03-11T02:23:42.301Z",
+  "datasetCollectedAt": "2026-03-10T08:42:20.5819696+07:00",
+  "totalAssets": 441,
+  "source": {
+    "subdomain": "demo",
+    "appId": "6421563c21169e32c89017a0",
+    "userId": "69af7667373147d561c2f112",
+    "bodyType": [
+      "generic",
+      "fullbody"
+    ],
+    "gender": [
+      "male",
+      "neutral"
+    ]
+  },
+  "types": [
+    {
+      "id": "top",
+      "label": "Tops",
+      "count": 33,
+      "file": "./types/top.json"
+    },
+    {
+      "id": "bottom",
+      "label": "Bottoms",
+      "count": 28,
+      "file": "./types/bottom.json"
+    },
+    {
+      "id": "footwear",
+      "label": "Footwear",
+      "count": 20,
+      "file": "./types/footwear.json"
+    },
+    {
+      "id": "outfit",
+      "label": "Outfits",
+      "count": 98,
+      "file": "./types/outfit.json"
+    },
+    {
+      "id": "hair",
+      "label": "Hair",
+      "count": 94,
+      "file": "./types/hair.json"
+    },
+    {
+      "id": "eye",
+      "label": "Eyes",
+      "count": 19,
+      "file": "./types/eye.json"
+    },
+    {
+      "id": "glasses",
+      "label": "Glasses",
+      "count": 63,
+      "file": "./types/glasses.json"
+    },
+    {
+      "id": "headwear",
+      "label": "Headwear",
+      "count": 38,
+      "file": "./types/headwear.json"
+    },
+    {
+      "id": "beard",
+      "label": "Beard",
+      "count": 36,
+      "file": "./types/beard.json"
+    },
+    {
+      "id": "facewear",
+      "label": "Facewear",
+      "count": 12,
+      "file": "./types/facewear.json"
+    }
+  ],
+  "groups": [
+    {
+      "id": "clothing",
+      "label": "Clothing",
+      "description": "Core outfit parts and full outfits",
+      "types": [
+        "top",
+        "bottom",
+        "footwear",
+        "outfit"
+      ],
+      "count": 179,
+      "file": "./groups/clothing.json"
+    },
+    {
+      "id": "face-hair",
+      "label": "Face & Hair",
+      "description": "Hair, beard and eyes",
+      "types": [
+        "hair",
+        "beard",
+        "eye"
+      ],
+      "count": 149,
+      "file": "./groups/face-hair.json"
+    },
+    {
+      "id": "accessories",
+      "label": "Accessories",
+      "description": "Wearables and face accessories",
+      "types": [
+        "glasses",
+        "headwear",
+        "facewear"
+      ],
+      "count": 113,
+      "file": "./groups/accessories.json"
+    }
+  ]
+}
