@@ -851,6 +851,14 @@ function App() {
 
       next[asset.type] = id;
 
+      if (FACIAL_FEATURE_TYPES.includes(asset.type)) {
+        for (const featureType of FACIAL_FEATURE_TYPES) {
+          if (featureType !== asset.type) {
+            delete next[featureType];
+          }
+        }
+      }
+
       if (asset.type === "outfit") {
         delete next.top;
         delete next.bottom;
