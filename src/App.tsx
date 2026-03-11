@@ -1259,8 +1259,8 @@ function App() {
               enablePan
               enableDamping
               dampingFactor={0.09}
-              minDistance={1.75}
-              maxDistance={8.4}
+              minDistance={0.65}
+              maxDistance={16}
               minPolarAngle={Math.PI / 3.2}
               maxPolarAngle={Math.PI / 1.72}
               target={[0, -0.08, 0]}
