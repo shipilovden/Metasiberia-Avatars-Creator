@@ -8,7 +8,14 @@ import {
   useProgress,
   useTexture,
 } from "@react-three/drei";
-import { Group, MOUSE, MeshStandardMaterial, SRGBColorSpace } from "three";
+import {
+  CanvasTexture,
+  Color,
+  Group,
+  MOUSE,
+  MeshStandardMaterial,
+  SRGBColorSpace,
+} from "three";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import assetSchema from "./config/asset-schema.json";
 import assetDataset from "./data/assets-catalog.json";
@@ -183,6 +190,8 @@ const UI_TEXT: Record<
     preset: string;
     hairColor: string;
     beardColor?: string;
+    eyebrowColor?: string;
+    lipColor?: string;
   }
 > = {
   ru: {
@@ -194,6 +203,8 @@ const UI_TEXT: Record<
     preset: "База",
     hairColor: "Цвет волос",
     beardColor: "Цвет бороды",
+    eyebrowColor: "Цвет бровей",
+    lipColor: "Цвет губ",
   },
   en: {
     next: "NEXT",
@@ -204,6 +215,8 @@ const UI_TEXT: Record<
     preset: "Base",
     hairColor: "Hair color",
     beardColor: "Beard color",
+    eyebrowColor: "Eyebrow color",
+    lipColor: "Lip color",
   },
 };
 
@@ -277,7 +290,9 @@ const SLOT_NAMES = {
 } as const;
 
 type MeshSlot = (typeof SLOT_NAMES)[keyof typeof SLOT_NAMES];
-type MeshTintMap = Partial<Record<string, string>>;
+type MeshTintMode = "flat" | "eyebrows" | "lips";
+type MeshTintEntry = { color: string; mode: MeshTintMode };
+type MeshTintMap = Partial<Record<string, MeshTintEntry>>;
 const FACIAL_FEATURE_TYPES: SupportedType[] = [
   "faceshape",
   "eyeshape",
@@ -313,7 +328,8 @@ function AvatarModel({
   const preparedScene = useMemo(() => {
     const includeSet = includeMeshes ? new Set(includeMeshes) : null;
     const hiddenSet = new Set(hiddenMeshes || []);
-    const cloneMaterialWithTint = (material: unknown, tintColor: string): unknown => {
+    const textureTintCache = new Map<string, CanvasTexture>();
+    const cloneMaterialWithTint = (material: unknown, tint: MeshTintEntry): unknown => {
       const tintOne = (entry: unknown): unknown => {
         if (!entry || typeof entry !== "object") {
           return entry;
@@ -322,7 +338,13 @@ function AvatarModel({
         const materialEntry = entry as {
           clone?: () => unknown;
           color?: { set?: (value: string) => void };
-          map?: unknown;
+          map?: {
+            image?: { width?: number; height?: number };
+            colorSpace?: unknown;
+            flipY?: boolean;
+            needsUpdate?: boolean;
+            uuid?: string;
+          } | null;
         };
 
         if (typeof materialEntry.clone !== "function") {
@@ -334,11 +356,172 @@ function AvatarModel({
           map?: unknown;
           needsUpdate?: boolean;
         };
-        // Full recolor: ignore baked albedo so selected color is not just a tint.
-        if ("map" in clonedMaterial) {
-          clonedMaterial.map = null;
+        if (tint.mode === "flat") {
+          // Full recolor for hair/beard.
+          if ("map" in clonedMaterial) {
+            clonedMaterial.map = null;
+          }
+        } else {
+          const sourceMap = materialEntry.map;
+          const sourceImage = sourceMap?.image;
+          const width = sourceImage?.width || 0;
+          const height = sourceImage?.height || 0;
+
+          if (sourceMap && width > 0 && height > 0) {
+            const cacheKey = `${sourceMap.uuid || "map"}:${tint.mode}:${tint.color}`;
+            let tintedTexture = textureTintCache.get(cacheKey);
+
+            if (!tintedTexture) {
+              const canvas = document.createElement("canvas");
+              canvas.width = width;
+              canvas.height = height;
+              const context = canvas.getContext("2d");
+
+              if (context) {
+                context.drawImage(
+                  sourceMap.image as CanvasImageSource,
+                  0,
+                  0,
+                  width,
+                  height
+                );
+                const imageData = context.getImageData(0, 0, width, height);
+                const data = imageData.data;
+                const sourceData = new Uint8ClampedArray(data);
+                const target = new Color(tint.color);
+                const targetR = Math.round(target.r * 255);
+                const targetG = Math.round(target.g * 255);
+                const targetB = Math.round(target.b * 255);
+
+                for (let index = 0; index < data.length; index += 4) {
+                  const alpha = data[index + 3];
+                  if (alpha < 8) continue;
+
+                  const red = data[index];
+                  const green = data[index + 1];
+                  const blue = data[index + 2];
+                  const pixel = index / 4;
+                  const x = pixel % width;
+                  const y = Math.floor(pixel / width);
+                  const yNorm = y / height;
+                  const xNorm = x / width;
+                  const luminance = (red + green + blue) / 3;
+                  const maxChannel = Math.max(red, green, blue);
+                  const minChannel = Math.min(red, green, blue);
+                  const chroma = maxChannel - minChannel;
+                  const saturation = maxChannel === 0 ? 0 : chroma / maxChannel;
+
+                  let strength = 0;
+
+                  if (tint.mode === "eyebrows") {
+                    const eyebrowBand = yNorm > 0.36 && yNorm < 0.54;
+                    const leftBrowZone = xNorm > 0.24 && xNorm < 0.46;
+                    const rightBrowZone = xNorm > 0.54 && xNorm < 0.76;
+                    const eyebrowZone = eyebrowBand && (leftBrowZone || rightBrowZone);
+
+                    if (!eyebrowZone) {
+                      continue;
+                    }
+
+                    const hasNeighbors =
+                      x > 0 && x < width - 1 && y > 0 && y < height - 1;
+                    if (!hasNeighbors) {
+                      continue;
+                    }
+
+                    const leftIndex = index - 4;
+                    const rightIndex = index + 4;
+                    const topIndex = index - width * 4;
+                    const bottomIndex = index + width * 4;
+
+                    const leftLum =
+                      (sourceData[leftIndex] +
+                        sourceData[leftIndex + 1] +
+                        sourceData[leftIndex + 2]) /
+                      3;
+                    const rightLum =
+                      (sourceData[rightIndex] +
+                        sourceData[rightIndex + 1] +
+                        sourceData[rightIndex + 2]) /
+                      3;
+                    const topLum =
+                      (sourceData[topIndex] +
+                        sourceData[topIndex + 1] +
+                        sourceData[topIndex + 2]) /
+                      3;
+                    const bottomLum =
+                      (sourceData[bottomIndex] +
+                        sourceData[bottomIndex + 1] +
+                        sourceData[bottomIndex + 2]) /
+                      3;
+
+                    const gradient =
+                      Math.abs(leftLum - rightLum) + Math.abs(topLum - bottomLum);
+                    const isDarkStroke = luminance < 176;
+                    const isMostlyNeutral = saturation < 0.48 && chroma < 122;
+                    const hasHairLikeDetail = gradient > 28;
+
+                    if (!isDarkStroke || !isMostlyNeutral || !hasHairLikeDetail) {
+                      continue;
+                    }
+
+                    const darkness = Math.min(1, (200 - luminance) / 200);
+                    const detail = Math.min(1, (gradient - 28) / 72);
+                    strength = 0.3 + darkness * 0.52 + detail * 0.18;
+                  } else if (tint.mode === "lips") {
+                    const lipCenterX = 0.5;
+                    const lipCenterY = 0.6;
+                    const lipRadiusX = 0.14;
+                    const lipRadiusY = 0.075;
+                    const dx = (xNorm - lipCenterX) / lipRadiusX;
+                    const dy = (yNorm - lipCenterY) / lipRadiusY;
+                    const lipEllipse = dx * dx + dy * dy < 1;
+                    const lipZone = yNorm > 0.5 && yNorm < 0.7 && xNorm > 0.32 && xNorm < 0.68;
+                    const lipLike =
+                      lipEllipse &&
+                      lipZone &&
+                      luminance > 86 &&
+                      luminance < 226 &&
+                      saturation < 0.56;
+                    if (!lipLike) {
+                      continue;
+                    }
+
+                    const softness = Math.max(0, 1 - (dx * dx + dy * dy));
+                    strength = 0.24 + softness * 0.46;
+                  } else {
+                    const threshold = 168;
+                    if (luminance > threshold) {
+                      continue;
+                    }
+                    strength = ((threshold - luminance) / threshold) * 0.88;
+                  }
+
+                  data[index] = Math.round(red * (1 - strength) + targetR * strength);
+                  data[index + 1] = Math.round(green * (1 - strength) + targetG * strength);
+                  data[index + 2] = Math.round(blue * (1 - strength) + targetB * strength);
+                }
+
+                context.putImageData(imageData, 0, 0);
+                tintedTexture = new CanvasTexture(canvas);
+                tintedTexture.colorSpace = SRGBColorSpace;
+                tintedTexture.flipY = sourceMap.flipY ?? false;
+                tintedTexture.needsUpdate = true;
+                textureTintCache.set(cacheKey, tintedTexture);
+              }
+            }
+
+            if (tintedTexture) {
+              clonedMaterial.map = tintedTexture;
+            }
+          }
         }
-        clonedMaterial.color?.set?.(tintColor);
+        if (tint.mode === "flat") {
+          clonedMaterial.color?.set?.(tint.color);
+        } else {
+          // Keep base skin tone from texture; tint is applied only on selected pixels.
+          clonedMaterial.color?.set?.("#ffffff");
+        }
         if ("needsUpdate" in clonedMaterial) {
           clonedMaterial.needsUpdate = true;
         }
@@ -376,9 +559,9 @@ function AvatarModel({
         mesh.visible = !hiddenSet.has(mesh.name as MeshSlot);
       }
 
-      const tintColor = mesh.name ? tintByMesh?.[mesh.name] : null;
-      if (tintColor && mesh.material) {
-        mesh.material = cloneMaterialWithTint(mesh.material, tintColor);
+      const tintEntry = mesh.name ? tintByMesh?.[mesh.name] : null;
+      if (tintEntry && mesh.material) {
+        mesh.material = cloneMaterialWithTint(mesh.material, tintEntry);
       }
     });
 
@@ -391,18 +574,81 @@ function AvatarModel({
 function AvatarHeadMaskLayer({
   modelUrl,
   maskUrl,
+  tintColor,
+  renderOrder = 20,
 }: {
   modelUrl: string;
   maskUrl: string;
+  tintColor?: string;
+  renderOrder?: number;
 }) {
   const { scene } = useGLTF(modelUrl) as { scene: Group };
   const maskTexture = useTexture(maskUrl);
+  const derivedAlphaTexture = useMemo(() => {
+    if (!tintColor) {
+      return maskTexture;
+    }
+
+    const sourceImage = maskTexture.image as CanvasImageSource | undefined;
+    const width =
+      sourceImage && "width" in sourceImage
+        ? Number((sourceImage as { width: number }).width) || 0
+        : 0;
+    const height =
+      sourceImage && "height" in sourceImage
+        ? Number((sourceImage as { height: number }).height) || 0
+        : 0;
+
+    if (!sourceImage || width <= 0 || height <= 0) {
+      return maskTexture;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return maskTexture;
+    }
+
+    context.drawImage(sourceImage as CanvasImageSource, 0, 0, width, height);
+    const imageData = context.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    let luminanceSum = 0;
+    const pixelCount = width * height;
+    for (let index = 0; index < data.length; index += 4) {
+      luminanceSum += (data[index] + data[index + 1] + data[index + 2]) / 3;
+    }
+    const averageLuminance = pixelCount > 0 ? luminanceSum / pixelCount : 255;
+    const invert = averageLuminance > 127;
+
+    for (let index = 0; index < data.length; index += 4) {
+      const luminance = (data[index] + data[index + 1] + data[index + 2]) / 3;
+      const rawAlpha = invert ? 255 - luminance : luminance;
+      const boosted = Math.max(0, Math.min(255, (rawAlpha - 16) * 1.25));
+
+      // Alpha map uses color channels, so keep grayscale in RGB.
+      data[index] = boosted;
+      data[index + 1] = boosted;
+      data[index + 2] = boosted;
+      data[index + 3] = 255;
+    }
+
+    context.putImageData(imageData, 0, 0);
+    const alphaTexture = new CanvasTexture(canvas);
+    alphaTexture.flipY = maskTexture.flipY ?? false;
+    alphaTexture.needsUpdate = true;
+    return alphaTexture;
+  }, [maskTexture, tintColor]);
 
   useEffect(() => {
     maskTexture.flipY = false;
-    maskTexture.colorSpace = SRGBColorSpace;
+    if (!tintColor) {
+      maskTexture.colorSpace = SRGBColorSpace;
+    }
     maskTexture.needsUpdate = true;
-  }, [maskTexture]);
+  }, [maskTexture, tintColor]);
 
   const preparedScene = useMemo(() => {
     const cloned = clone(scene) as Group;
@@ -432,13 +678,14 @@ function AvatarHeadMaskLayer({
 
       mesh.castShadow = false;
       mesh.receiveShadow = false;
-      mesh.renderOrder = 20;
+      mesh.renderOrder = renderOrder;
 
       const overlayMaterial = new MeshStandardMaterial({
-        map: maskTexture,
-        alphaMap: maskTexture,
+        map: tintColor ? null : maskTexture,
+        alphaMap: tintColor ? derivedAlphaTexture : maskTexture,
         transparent: true,
         depthWrite: false,
+        color: tintColor || "#ffffff",
         roughness: 1,
         metalness: 0,
         polygonOffset: true,
@@ -451,7 +698,7 @@ function AvatarHeadMaskLayer({
     });
 
     return cloned;
-  }, [maskTexture, modelUrl, scene]);
+  }, [derivedAlphaTexture, maskTexture, modelUrl, renderOrder, scene, tintColor]);
 
   return <primitive object={preparedScene} position={POSITION_OFFSET} />;
 }
@@ -507,6 +754,10 @@ function App() {
   const [selectedPresetId, setSelectedPresetId] = useState("preset-1");
   const [selectedHairColor, setSelectedHairColor] = useState<string>(HAIR_COLOR_SWATCHES[0]);
   const [selectedBeardColor, setSelectedBeardColor] = useState<string>(HAIR_COLOR_SWATCHES[0]);
+  const [selectedEyebrowColor, setSelectedEyebrowColor] = useState<string>(
+    HAIR_COLOR_SWATCHES[0]
+  );
+  const [selectedLipColor, setSelectedLipColor] = useState<string>(HAIR_COLOR_SWATCHES[23]);
   const [selectedByType, setSelectedByType] = useState<
     Partial<Record<SupportedType, string>>
   >({});
@@ -716,15 +967,18 @@ function App() {
 
   const selectedPreset =
     presetOptions.find((preset) => preset.id === selectedPresetId) || presetOptions[0] || null;
-  const hairTintByMesh = useMemo<MeshTintMap>(
+  const tintByMesh = useMemo<MeshTintMap>(
     () => ({
-      [SLOT_NAMES.hair]: selectedHairColor,
-      "Wolf3D_Hair.001": selectedHairColor,
-      "hair-60": selectedHairColor,
-      low: selectedHairColor,
-      [SLOT_NAMES.beard]: selectedBeardColor,
+      [SLOT_NAMES.hair]: { color: selectedHairColor, mode: "flat" },
+      "Wolf3D_Hair.001": { color: selectedHairColor, mode: "flat" },
+      "hair-60": { color: selectedHairColor, mode: "flat" },
+      low: { color: selectedHairColor, mode: "flat" },
+      [SLOT_NAMES.beard]: { color: selectedBeardColor, mode: "flat" },
+      [SLOT_NAMES.head]: selectedByType.lipshape
+        ? { color: selectedLipColor, mode: "lips" }
+        : undefined,
     }),
-    [selectedBeardColor, selectedHairColor]
+    [selectedBeardColor, selectedByType.lipshape, selectedHairColor, selectedLipColor]
   );
   const composedScene = useMemo(() => {
     const slotOwners = new Map<MeshSlot, string>();
@@ -737,6 +991,7 @@ function App() {
     const suppressFacewear =
       activeType === "beard" || activeType === "headwear";
     const selectedBeardAsset = getSelectedAssetRecord("beard");
+    const selectedEyebrowAsset = getSelectedAssetRecord("eyebrows");
 
     const outfitUrl = getUrl("outfit");
     if (outfitUrl) {
@@ -780,6 +1035,7 @@ function App() {
     }
 
     const beardUrl = getUrl("beard");
+    const eyebrowUrl = getUrl("eyebrows");
     const beardCapability = getCapability("beard");
     if (beardUrl) {
       slotOwners.set(SLOT_NAMES.head, beardUrl);
@@ -830,6 +1086,8 @@ function App() {
       hiddenBaseMeshes: Array.from(slotOwners.keys()),
       beardMaskUrl: selectedBeardAsset?.maskUrl || null,
       beardMaskModelUrl: beardUrl,
+      eyebrowMaskUrl: selectedEyebrowAsset?.maskUrl || null,
+      eyebrowMaskModelUrl: eyebrowUrl,
       parts: Array.from(partsByUrl.entries()).map(([modelUrl, includeMeshes]) => ({
         modelUrl,
         includeMeshes,
@@ -887,7 +1145,13 @@ function App() {
 
   const copy = UI_TEXT[locale];
   const colorPanelLabel =
-    activeType === "beard" ? copy.beardColor || copy.hairColor : copy.hairColor;
+    activeType === "beard"
+      ? copy.beardColor || copy.hairColor
+      : activeType === "eyebrows"
+        ? copy.eyebrowColor || copy.hairColor
+        : activeType === "lipshape"
+          ? copy.lipColor || copy.hairColor
+          : copy.hairColor;
   const typeLabels = TYPE_LABELS[locale];
   const groupLabels = GROUP_LABELS[locale];
 
@@ -945,7 +1209,7 @@ function App() {
                 <AvatarModel
                   modelUrl={selectedPreset.baseModelUrl}
                   hiddenMeshes={composedScene.hiddenBaseMeshes}
-                  tintByMesh={hairTintByMesh}
+                  tintByMesh={tintByMesh}
                 />
               ) : (
                 <PlaceholderAvatar />
@@ -956,7 +1220,7 @@ function App() {
                   key={`${part.modelUrl}:${part.includeMeshes.join("|")}`}
                   modelUrl={part.modelUrl}
                   includeMeshes={part.includeMeshes}
-                  tintByMesh={hairTintByMesh}
+                  tintByMesh={tintByMesh}
                 />
               ))}
 
@@ -964,6 +1228,14 @@ function App() {
                 <AvatarHeadMaskLayer
                   modelUrl={composedScene.beardMaskModelUrl}
                   maskUrl={composedScene.beardMaskUrl}
+                />
+              ) : null}
+              {composedScene.eyebrowMaskUrl && composedScene.eyebrowMaskModelUrl ? (
+                <AvatarHeadMaskLayer
+                  modelUrl={composedScene.eyebrowMaskModelUrl}
+                  maskUrl={composedScene.eyebrowMaskUrl}
+                  tintColor={selectedEyebrowColor}
+                  renderOrder={21}
                 />
               ) : null}
 
@@ -1001,17 +1273,34 @@ function App() {
           </Canvas>
         </div>
 
-        {activeType === "hair" || activeType === "beard" ? (
+        {activeType === "hair" ||
+        activeType === "beard" ||
+        activeType === "eyebrows" ||
+        activeType === "lipshape" ? (
           <div className="hair-color-panel" aria-label={colorPanelLabel}>
             {HAIR_COLOR_SWATCHES.map((color) => (
               <button
                 key={color}
                 type="button"
-                className={`hair-color-dot${(activeType === "beard" ? selectedBeardColor : selectedHairColor) === color ? " hair-color-dot--active" : ""}`}
+                className={`hair-color-dot${(
+                  activeType === "beard"
+                    ? selectedBeardColor
+                    : activeType === "eyebrows"
+                      ? selectedEyebrowColor
+                      : activeType === "lipshape"
+                        ? selectedLipColor
+                        : selectedHairColor
+                ) === color
+                  ? " hair-color-dot--active"
+                  : ""}`}
                 onClick={() =>
                   activeType === "beard"
                     ? setSelectedBeardColor(color)
-                    : setSelectedHairColor(color)
+                    : activeType === "eyebrows"
+                      ? setSelectedEyebrowColor(color)
+                      : activeType === "lipshape"
+                        ? setSelectedLipColor(color)
+                        : setSelectedHairColor(color)
                 }
                 style={{ background: color }}
                 title={color}
