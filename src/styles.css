@@ -215,7 +215,7 @@ body {
 
 .asset-panel {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 74px;
+  grid-template-columns: minmax(0, 1fr);
   background: #ffffff;
   min-height: 0;
 }
@@ -271,12 +271,22 @@ body {
 .preset-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 64px;
   gap: 8px;
+  max-height: 232px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-content: start;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #7e7e7e #ececec;
 }
 
 .preset-btn {
   position: relative;
-  min-height: 72px;
+  width: 100%;
+  height: 100%;
+  min-height: 64px;
   border-radius: 12px;
   overflow: hidden;
   padding: 0;
@@ -292,6 +302,9 @@ body {
 
 .preset-btn img {
   object-fit: cover;
+  object-position: 50% 20%;
+  transform: scale(1.18);
+  transform-origin: center top;
 }
 
 .preset-btn__fallback {
@@ -300,24 +313,6 @@ body {
   font-size: 20px;
   font-weight: 800;
   color: #262626;
-}
-
-.preset-btn__index {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  font-size: 10px;
-  font-weight: 800;
-  color: #101010;
 }
 
 .preset-btn--active {
@@ -329,12 +324,10 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 110px;
-  overflow-y: scroll;
+  max-height: none;
+  overflow-y: visible;
   align-content: start;
-  padding-right: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: #7e7e7e #ececec;
+  padding-right: 0;
 }
 
 .tab-btn {
@@ -417,55 +410,25 @@ body {
   height: 54%;
 }
 
-.category-rail {
-  display: grid;
-  grid-auto-rows: 56px;
-  align-content: start;
-  justify-items: center;
-  gap: 4px;
-  padding-top: 62px;
-  background: linear-gradient(180deg, #fefefe 0%, #ededed 100%);
-  overflow-y: scroll;
-  scrollbar-width: thin;
-  scrollbar-color: #7e7e7e #ececec;
-}
-
 .type-tabs::-webkit-scrollbar,
 .asset-grid::-webkit-scrollbar,
-.category-rail::-webkit-scrollbar {
+.preset-strip::-webkit-scrollbar {
   width: 10px;
 }
 
 .type-tabs::-webkit-scrollbar-track,
 .asset-grid::-webkit-scrollbar-track,
-.category-rail::-webkit-scrollbar-track {
+.preset-strip::-webkit-scrollbar-track {
   background: #ececec;
   border-radius: 999px;
 }
 
 .type-tabs::-webkit-scrollbar-thumb,
 .asset-grid::-webkit-scrollbar-thumb,
-.category-rail::-webkit-scrollbar-thumb {
+.preset-strip::-webkit-scrollbar-thumb {
   background: #7e7e7e;
   border-radius: 999px;
   border: 2px solid #ececec;
-}
-
-.category-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  border: 1px solid #1b1b1b;
-  background: #ffffff;
-  color: #222222;
-  font-size: 18px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.category-btn--active {
-  background: linear-gradient(180deg, #ff6adf 0%, #eb00ff 100%);
-  color: #ffffff;
 }
 
 @keyframes spin-loader {
@@ -500,7 +463,7 @@ body {
   }
 
   .asset-panel {
-    grid-template-columns: minmax(0, 1fr) 68px;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .hair-color-panel {
@@ -517,10 +480,6 @@ body {
 
   .preset-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .category-rail {
-    padding-top: 12px;
   }
 
   .next-button {

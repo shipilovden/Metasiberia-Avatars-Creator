@@ -1,5 +1,5 @@
 ﻿import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import {
   ContactShadows,
   Html,
@@ -14,6 +14,8 @@ import {
   Group,
   MOUSE,
   MeshStandardMaterial,
+  AnimationClip,
+  AnimationMixer,
   SRGBColorSpace,
 } from "three";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -37,7 +39,8 @@ type SupportedType =
   | "glasses"
   | "headwear"
   | "beard"
-  | "facewear";
+  | "facewear"
+  | "facemask";
 
 type UiGender = "male" | "female";
 type AssetGender = UiGender | "neutral";
@@ -120,13 +123,6 @@ const localAssetCapabilities =
   localAssetCapabilitiesManifest as LocalAssetCapabilitiesManifest;
 const localLibrary = localLibraryManifest as LocalLibraryManifest;
 
-const CATEGORY_ICONS: Record<string, string> = {
-  clothing: "T",
-  "face-hair": "F",
-  "face-shape": "S",
-  accessories: "A",
-};
-
 const TYPE_LABELS: Record<UiLocale, Record<SupportedType, string>> = {
   ru: {
     top: "Верх",
@@ -144,6 +140,7 @@ const TYPE_LABELS: Record<UiLocale, Record<SupportedType, string>> = {
     headwear: "Головные",
     beard: "Борода",
     facewear: "Маски",
+    facemask: "Грим",
   },
   en: {
     top: "Tops",
@@ -161,21 +158,7 @@ const TYPE_LABELS: Record<UiLocale, Record<SupportedType, string>> = {
     headwear: "Headwear",
     beard: "Beard",
     facewear: "Facewear",
-  },
-};
-
-const GROUP_LABELS: Record<UiLocale, Record<string, string>> = {
-  ru: {
-    clothing: "Одежда",
-    "face-hair": "Лицо и волосы",
-    "face-shape": "Форма лица",
-    accessories: "Аксессуары",
-  },
-  en: {
-    clothing: "Clothing",
-    "face-hair": "Face & Hair",
-    "face-shape": "Face Shape",
-    accessories: "Accessories",
+    facemask: "Face paint",
   },
 };
 
@@ -221,6 +204,10 @@ const UI_TEXT: Record<
 };
 
 const POSITION_OFFSET: [number, number, number] = [0, -1.06, 0];
+const IDLE_ANIMATION_URL: Record<UiGender, string> = {
+  male: "/local-assets/animations/male-idle-animation.glb",
+  female: "/local-assets/animations/female-idle-animation.glb",
+};
 const HAIR_COLOR_SWATCHES = [
   "#151515",
   "#242424",
@@ -282,6 +269,7 @@ const SLOT_NAMES = {
   glasses: "Wolf3D_Glasses",
   headwear: "Wolf3D_Headwear",
   facewear: "Wolf3D_Facewear",
+  faceMask: "Wolf3D_FaceMask",
   top: "Wolf3D_Outfit_Top",
   bottom: "Wolf3D_Outfit_Bottom",
   footwear: "Wolf3D_Outfit_Footwear",
@@ -302,16 +290,66 @@ const FACIAL_FEATURE_TYPES: SupportedType[] = [
 ];
 
 const makeLookupKey = (type: string, id: string) => `${type}:${id}`;
+const useIdleAnimation = (scene: Group, idleAnimationUrl: string) => {
+  const mixerRef = useRef<AnimationMixer | null>(null);
+  const clipDurationRef = useRef<number>(0);
+  const { animations } = useGLTF(idleAnimationUrl) as {
+    scene: Group;
+    animations: AnimationClip[];
+  };
+
+  useEffect(() => {
+    const clip = animations[0];
+    if (!clip) {
+      return;
+    }
+
+    const mixer = new AnimationMixer(scene);
+    const action = mixer.clipAction(clip, scene);
+    action.reset();
+    action.play();
+    action.clampWhenFinished = false;
+    mixerRef.current = mixer;
+    clipDurationRef.current = Math.max(clip.duration || 0, 0.001);
+
+    return () => {
+      action.stop();
+      mixer.stopAllAction();
+      mixer.uncacheRoot(scene);
+      mixerRef.current = null;
+      clipDurationRef.current = 0;
+    };
+  }, [animations, scene]);
+
+  useFrame((state) => {
+    const mixer = mixerRef.current;
+    if (!mixer) {
+      return;
+    }
+
+    const duration = clipDurationRef.current;
+    if (duration <= 0) {
+      return;
+    }
+
+    // Drive all layered avatar parts from one absolute timeline.
+    const time = state.clock.getElapsedTime() % duration;
+    mixer.setTime(time);
+  });
+};
+
 function AvatarModel({
   modelUrl,
   includeMeshes,
   hiddenMeshes,
   tintByMesh,
+  idleAnimationUrl,
 }: {
   modelUrl: string;
   includeMeshes?: readonly MeshSlot[];
   hiddenMeshes?: readonly MeshSlot[];
   tintByMesh?: MeshTintMap;
+  idleAnimationUrl: string;
 }) {
   const { scene } = useGLTF(modelUrl) as { scene: Group };
   const includeKey = includeMeshes?.join("|") || "";
@@ -567,18 +605,20 @@ function AvatarModel({
 
     return cloned;
   }, [hiddenKey, includeKey, includeMeshes, hiddenMeshes, scene, tintByMesh, tintKey]);
-
+  useIdleAnimation(preparedScene, idleAnimationUrl);
   return <primitive object={preparedScene} position={POSITION_OFFSET} />;
 }
 
 function AvatarHeadMaskLayer({
   modelUrl,
   maskUrl,
+  idleAnimationUrl,
   tintColor,
   renderOrder = 20,
 }: {
   modelUrl: string;
   maskUrl: string;
+  idleAnimationUrl: string;
   tintColor?: string;
   renderOrder?: number;
 }) {
@@ -682,7 +722,9 @@ function AvatarHeadMaskLayer({
 
       const overlayMaterial = new MeshStandardMaterial({
         map: tintColor ? null : maskTexture,
-        alphaMap: tintColor ? derivedAlphaTexture : maskTexture,
+        // For non-tinted overlays (face paint), use texture alpha directly.
+        // alphaMap would derive transparency from color channels and hide dark paint.
+        alphaMap: tintColor ? derivedAlphaTexture : null,
         transparent: true,
         depthWrite: false,
         color: tintColor || "#ffffff",
@@ -699,7 +741,7 @@ function AvatarHeadMaskLayer({
 
     return cloned;
   }, [derivedAlphaTexture, maskTexture, modelUrl, renderOrder, scene, tintColor]);
-
+  useIdleAnimation(preparedScene, idleAnimationUrl);
   return <primitive object={preparedScene} position={POSITION_OFFSET} />;
 }
 
@@ -744,8 +786,182 @@ function ClearAssetIcon() {
   );
 }
 
+function PresetPreviewImage({ src, alt }: { src: string; alt: string }) {
+  const [normalizedSrc, setNormalizedSrc] = useState(src);
+
+  useEffect(() => {
+    let cancelled = false;
+    const image = new Image();
+    image.decoding = "async";
+    image.src = src;
+
+    image.onload = () => {
+      if (cancelled) return;
+
+      const width = image.naturalWidth || image.width;
+      const height = image.naturalHeight || image.height;
+      if (!width || !height) {
+        setNormalizedSrc(src);
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        setNormalizedSrc(src);
+        return;
+      }
+
+      context.drawImage(image, 0, 0, width, height);
+      const imageData = context.getImageData(0, 0, width, height);
+      const data = imageData.data;
+      const pixelCount = width * height;
+      const visited = new Uint8Array(pixelCount);
+      const queue = new Int32Array(pixelCount);
+      let head = 0;
+      let tail = 0;
+
+      const getOffset = (x: number, y: number) => (y * width + x) * 4;
+
+      const corners = [
+        getOffset(0, 0),
+        getOffset(width - 1, 0),
+        getOffset(0, height - 1),
+        getOffset(width - 1, height - 1),
+      ];
+
+      const bgR = Math.round(
+        corners.reduce((sum, offset) => sum + data[offset], 0) / corners.length
+      );
+      const bgG = Math.round(
+        corners.reduce((sum, offset) => sum + data[offset + 1], 0) / corners.length
+      );
+      const bgB = Math.round(
+        corners.reduce((sum, offset) => sum + data[offset + 2], 0) / corners.length
+      );
+      const toHsv = (red: number, green: number, blue: number) => {
+        const r = red / 255;
+        const g = green / 255;
+        const b = blue / 255;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const delta = max - min;
+
+        let hue = 0;
+        if (delta > 0) {
+          if (max === r) {
+            hue = ((g - b) / delta) % 6;
+          } else if (max === g) {
+            hue = (b - r) / delta + 2;
+          } else {
+            hue = (r - g) / delta + 4;
+          }
+          hue /= 6;
+          if (hue < 0) hue += 1;
+        }
+
+        const saturation = max === 0 ? 0 : delta / max;
+        const value = max;
+        return { hue, saturation, value };
+      };
+
+      const hueDistance = (left: number, right: number) => {
+        const diff = Math.abs(left - right);
+        return Math.min(diff, 1 - diff);
+      };
+
+      const bgHsv = toHsv(bgR, bgG, bgB);
+      const isDarkColorBackground = bgHsv.value < 0.62 && bgHsv.saturation > 0.14;
+      if (!isDarkColorBackground) {
+        setNormalizedSrc(src);
+        return;
+      }
+
+      const distanceToBg = (offset: number) => {
+        const dr = data[offset] - bgR;
+        const dg = data[offset + 1] - bgG;
+        const db = data[offset + 2] - bgB;
+        return Math.sqrt(dr * dr + dg * dg + db * db);
+      };
+
+      const threshold = 38;
+      const isBackgroundLike = (offset: number) => {
+        const distance = distanceToBg(offset);
+        if (distance > threshold) {
+          return false;
+        }
+
+        const hsv = toHsv(data[offset], data[offset + 1], data[offset + 2]);
+        const hDiff = hueDistance(hsv.hue, bgHsv.hue);
+        const sDiff = Math.abs(hsv.saturation - bgHsv.saturation);
+        const vDiff = Math.abs(hsv.value - bgHsv.value);
+
+        return hDiff < 0.08 && sDiff < 0.24 && vDiff < 0.24;
+      };
+
+      const push = (x: number, y: number) => {
+        if (x < 0 || x >= width || y < 0 || y >= height) return;
+        const index = y * width + x;
+        if (visited[index]) return;
+
+        const offset = index * 4;
+        if (!isBackgroundLike(offset)) return;
+
+        visited[index] = 1;
+        queue[tail] = index;
+        tail += 1;
+      };
+
+      for (let x = 0; x < width; x += 1) {
+        push(x, 0);
+        push(x, height - 1);
+      }
+      for (let y = 0; y < height; y += 1) {
+        push(0, y);
+        push(width - 1, y);
+      }
+
+      while (head < tail) {
+        const index = queue[head];
+        head += 1;
+        const x = index % width;
+        const y = Math.floor(index / width);
+
+        push(x - 1, y);
+        push(x + 1, y);
+        push(x, y - 1);
+        push(x, y + 1);
+      }
+
+      for (let index = 0; index < pixelCount; index += 1) {
+        if (!visited[index]) continue;
+        const offset = index * 4;
+        data[offset] = 255;
+        data[offset + 1] = 255;
+        data[offset + 2] = 255;
+      }
+
+      context.putImageData(imageData, 0, 0);
+      setNormalizedSrc(canvas.toDataURL("image/png"));
+    };
+
+    image.onerror = () => {
+      if (!cancelled) {
+        setNormalizedSrc(src);
+      }
+    };
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  return <img src={normalizedSrc} alt={alt} loading="lazy" />;
+}
+
 function App() {
-  const [activeGroupId, setActiveGroupId] = useState(groups[0]?.id || "clothing");
   const [activeType, setActiveType] = useState<SupportedType>(
     groups[0]?.types[0] || "top"
   );
@@ -762,18 +978,6 @@ function App() {
     Partial<Record<SupportedType, string>>
   >({});
   const previousPresetRef = useRef("preset-1");
-
-  const groupByType = useMemo(() => {
-    const map = new Map<SupportedType, string>();
-
-    for (const group of groups) {
-      for (const typeId of group.types) {
-        map.set(typeId, group.id);
-      }
-    }
-
-    return map;
-  }, []);
 
   useEffect(() => {
     const browserLocale = navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
@@ -893,13 +1097,6 @@ function App() {
   }, [activeType, assetsByType, capabilityByAsset, selectedGender]);
 
   useEffect(() => {
-    const nextGroupId = groupByType.get(activeType);
-    if (nextGroupId && nextGroupId !== activeGroupId) {
-      setActiveGroupId(nextGroupId);
-    }
-  }, [activeGroupId, activeType, groupByType]);
-
-  useEffect(() => {
     setSelectedByType((current) => {
       let changed = false;
       const next: Partial<Record<SupportedType, string>> = { ...current };
@@ -992,6 +1189,7 @@ function App() {
       activeType === "beard" || activeType === "headwear";
     const selectedBeardAsset = getSelectedAssetRecord("beard");
     const selectedEyebrowAsset = getSelectedAssetRecord("eyebrows");
+    const selectedFacemaskAsset = getSelectedAssetRecord("facemask");
 
     const outfitUrl = getUrl("outfit");
     if (outfitUrl) {
@@ -1082,18 +1280,22 @@ function App() {
       partsByUrl.get(url)?.push(slot);
     }
 
+    const activeHeadModelUrl = slotOwners.get(SLOT_NAMES.head) || selectedPreset?.baseModelUrl || null;
+
     return {
       hiddenBaseMeshes: Array.from(slotOwners.keys()),
       beardMaskUrl: selectedBeardAsset?.maskUrl || null,
       beardMaskModelUrl: beardUrl,
       eyebrowMaskUrl: selectedEyebrowAsset?.maskUrl || null,
       eyebrowMaskModelUrl: eyebrowUrl,
+      facemaskMaskUrl: selectedFacemaskAsset?.maskUrl || null,
+      facemaskMaskModelUrl: activeHeadModelUrl,
       parts: Array.from(partsByUrl.entries()).map(([modelUrl, includeMeshes]) => ({
         modelUrl,
         includeMeshes,
       })),
     };
-  }, [activeType, capabilityByAsset, selectedByType, selectedLocalByType]);
+  }, [activeType, capabilityByAsset, selectedByType, selectedLocalByType, selectedPreset]);
 
   const handleSelectAsset = (asset: AssetRecord) => {
     const id = String(asset.id);
@@ -1153,7 +1355,7 @@ function App() {
           ? copy.lipColor || copy.hairColor
           : copy.hairColor;
   const typeLabels = TYPE_LABELS[locale];
-  const groupLabels = GROUP_LABELS[locale];
+  const idleAnimationUrl = IDLE_ANIMATION_URL[selectedGender];
 
   return (
     <main className="creator-shell">
@@ -1210,6 +1412,7 @@ function App() {
                   modelUrl={selectedPreset.baseModelUrl}
                   hiddenMeshes={composedScene.hiddenBaseMeshes}
                   tintByMesh={tintByMesh}
+                  idleAnimationUrl={idleAnimationUrl}
                 />
               ) : (
                 <PlaceholderAvatar />
@@ -1221,6 +1424,7 @@ function App() {
                   modelUrl={part.modelUrl}
                   includeMeshes={part.includeMeshes}
                   tintByMesh={tintByMesh}
+                  idleAnimationUrl={idleAnimationUrl}
                 />
               ))}
 
@@ -1228,14 +1432,24 @@ function App() {
                 <AvatarHeadMaskLayer
                   modelUrl={composedScene.beardMaskModelUrl}
                   maskUrl={composedScene.beardMaskUrl}
+                  idleAnimationUrl={idleAnimationUrl}
                 />
               ) : null}
               {composedScene.eyebrowMaskUrl && composedScene.eyebrowMaskModelUrl ? (
                 <AvatarHeadMaskLayer
                   modelUrl={composedScene.eyebrowMaskModelUrl}
                   maskUrl={composedScene.eyebrowMaskUrl}
+                  idleAnimationUrl={idleAnimationUrl}
                   tintColor={selectedEyebrowColor}
                   renderOrder={21}
+                />
+              ) : null}
+              {composedScene.facemaskMaskUrl && composedScene.facemaskMaskModelUrl ? (
+                <AvatarHeadMaskLayer
+                  modelUrl={composedScene.facemaskMaskModelUrl}
+                  maskUrl={composedScene.facemaskMaskUrl}
+                  idleAnimationUrl={idleAnimationUrl}
+                  renderOrder={22}
                 />
               ) : null}
 
@@ -1340,15 +1554,13 @@ function App() {
                     title={`${copy.preset} ${index + 1}`}
                   >
                     {preset.previewUrl ? (
-                      <img
+                      <PresetPreviewImage
                         src={preset.previewUrl}
                         alt={`${copy.preset} ${index + 1}`}
-                        loading="lazy"
                       />
                     ) : (
                       <span className="preset-btn__fallback">{index + 1}</span>
                     )}
-                    <span className="preset-btn__index">{index + 1}</span>
                   </button>
                 );
               })}
@@ -1404,25 +1616,12 @@ function App() {
           </div>
         </div>
 
-        <div className="category-rail">
-          {groups.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              className={`category-btn${activeGroupId === group.id ? " category-btn--active" : ""}`}
-              onClick={() => {
-                setActiveGroupId(group.id);
-                setActiveType(group.types[0]);
-              }}
-              title={groupLabels[group.id] || group.label}
-            >
-              <span>{CATEGORY_ICONS[group.id] || group.label.charAt(0)}</span>
-            </button>
-          ))}
-        </div>
       </aside>
     </main>
   );
 }
+
+useGLTF.preload(IDLE_ANIMATION_URL.male);
+useGLTF.preload(IDLE_ANIMATION_URL.female);
 
 export default App;
