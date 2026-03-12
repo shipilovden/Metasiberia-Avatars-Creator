@@ -162,25 +162,26 @@ body {
 }
 
 .locale-toggle {
+  width: 40px;
   height: 40px;
-  padding: 4px;
+  padding: 0;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
 }
 
 .locale-chip {
-  min-width: 34px;
+  min-width: 28px;
   height: 28px;
   border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
-  color: #1c1c1c;
+  color: #ffffff;
 }
 
 .locale-chip--active {

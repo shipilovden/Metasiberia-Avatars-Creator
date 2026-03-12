@@ -1370,12 +1370,7 @@ function App() {
             onClick={() => setLocale((current) => (current === "ru" ? "en" : "ru"))}
             aria-label={`Switch language to ${locale === "ru" ? "English" : "Russian"}`}
           >
-            <span className={locale === "ru" ? "locale-chip locale-chip--active" : "locale-chip"}>
-              RU
-            </span>
-            <span className={locale === "en" ? "locale-chip locale-chip--active" : "locale-chip"}>
-              EN
-            </span>
+            <span className="locale-chip locale-chip--active">{locale === "ru" ? "R" : "E"}</span>
           </button>
           <button className="next-button" type="button">
             {copy.next} <span aria-hidden>→</span>
