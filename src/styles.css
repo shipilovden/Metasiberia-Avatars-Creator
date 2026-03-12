@@ -107,7 +107,8 @@ body {
 
 .gear-button,
 .next-button,
-.locale-toggle {
+.locale-toggle,
+.texture-button {
   z-index: 8;
   border: 1px solid #191919;
   cursor: pointer;
@@ -116,7 +117,8 @@ body {
 
 .gear-button:hover,
 .next-button:hover,
-.locale-toggle:hover {
+.locale-toggle:hover,
+.texture-button:hover {
   transform: translateY(-1px);
   filter: brightness(1.06);
 }
@@ -172,6 +174,16 @@ body {
   justify-content: center;
 }
 
+.texture-button {
+  min-width: 48px;
+  height: 40px;
+  border-radius: 12px;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  color: #1d1d1d;
+}
+
 .locale-chip {
   min-width: 28px;
   height: 28px;
@@ -191,6 +203,99 @@ body {
 
 .next-button span {
   margin-left: 6px;
+}
+
+.sticker-controls {
+  position: absolute;
+  top: 70px;
+  right: 16px;
+  z-index: 8;
+  min-width: 238px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.26);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(4px);
+}
+
+.sticker-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1b1b1b;
+}
+
+.sticker-slider {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #232323;
+}
+
+.sticker-slider input[type="range"] {
+  width: 100%;
+}
+
+.texture-file-input {
+  display: none;
+}
+
+.texture-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  background: rgba(0, 0, 0, 0.25);
+  display: grid;
+  place-items: center;
+}
+
+.texture-modal {
+  width: min(92vw, 390px);
+  border-radius: 14px;
+  border: 1px solid #1c1c1c;
+  background: #ffffff;
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.texture-modal h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #111111;
+}
+
+.texture-modal p {
+  margin: 0;
+  font-size: 13px;
+  color: #222222;
+}
+
+.texture-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.texture-modal-btn {
+  border: 1px solid #1a1a1a;
+  border-radius: 10px;
+  min-height: 34px;
+  padding: 0 12px;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.texture-modal-btn--danger {
+  color: #9f1f1f;
+  border-color: #9f1f1f;
 }
 
 .canvas-loader {
@@ -496,6 +601,10 @@ body {
   }
 
   .locale-toggle {
+    height: 38px;
+  }
+
+  .texture-button {
     height: 38px;
   }
 }

@@ -1,5 +1,5 @@
 ﻿import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, ThreeEvent, useFrame } from "@react-three/fiber";
 import {
   ContactShadows,
   Html,
@@ -11,12 +11,15 @@ import {
 import {
   CanvasTexture,
   Color,
+  DoubleSide,
   Group,
   MOUSE,
   MeshStandardMaterial,
   AnimationClip,
   AnimationMixer,
+  Quaternion,
   SRGBColorSpace,
+  Vector3,
 } from "three";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import assetSchema from "./config/asset-schema.json";
@@ -115,6 +118,12 @@ type LocalAssetCapabilitiesManifest = {
 };
 
 type UiLocale = "ru" | "en";
+type StickerTransform = {
+  position: [number, number, number];
+  normal: [number, number, number];
+  scale: number;
+  rotationDeg: number;
+};
 
 const groups = assetSchema.groups as GroupSchema[];
 const allTypes = assetSchema.types as { id: SupportedType; label: string }[];
@@ -175,6 +184,14 @@ const UI_TEXT: Record<
     beardColor?: string;
     eyebrowColor?: string;
     lipColor?: string;
+    texture: string;
+    textureUploadTitle: string;
+    textureUploadHint: string;
+    texturePickFile: string;
+    textureRemove: string;
+    textureEditMode: string;
+    textureScale: string;
+    textureRotation: string;
   }
 > = {
   ru: {
@@ -188,6 +205,14 @@ const UI_TEXT: Record<
     beardColor: "Цвет бороды",
     eyebrowColor: "Цвет бровей",
     lipColor: "Цвет губ",
+    texture: "PNG",
+    textureUploadTitle: "Своя текстура",
+    textureUploadHint: "Загрузите PNG и двигайте по поверхности аватара",
+    texturePickFile: "Выбрать PNG",
+    textureRemove: "Убрать",
+    textureEditMode: "Двигать по модели",
+    textureScale: "Размер",
+    textureRotation: "Поворот",
   },
   en: {
     next: "NEXT",
@@ -200,6 +225,14 @@ const UI_TEXT: Record<
     beardColor: "Beard color",
     eyebrowColor: "Eyebrow color",
     lipColor: "Lip color",
+    texture: "PNG",
+    textureUploadTitle: "Custom texture",
+    textureUploadHint: "Upload PNG and drag it across avatar surface",
+    texturePickFile: "Choose PNG",
+    textureRemove: "Remove",
+    textureEditMode: "Move on model",
+    textureScale: "Scale",
+    textureRotation: "Rotation",
   },
 };
 
@@ -582,6 +615,7 @@ function AvatarModel({
         visible?: boolean;
         name?: string;
         material?: unknown;
+        userData?: Record<string, unknown>;
       };
 
       if (!mesh.isMesh) {
@@ -590,6 +624,7 @@ function AvatarModel({
 
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      mesh.userData = { ...(mesh.userData || {}), avatarSurface: true };
 
       if (includeSet) {
         mesh.visible = includeSet.has(mesh.name as MeshSlot);
@@ -743,6 +778,57 @@ function AvatarHeadMaskLayer({
   }, [derivedAlphaTexture, maskTexture, modelUrl, renderOrder, scene, tintColor]);
   useIdleAnimation(preparedScene, idleAnimationUrl);
   return <primitive object={preparedScene} position={POSITION_OFFSET} />;
+}
+
+function SurfaceSticker({
+  textureUrl,
+  transform,
+}: {
+  textureUrl: string;
+  transform: StickerTransform;
+}) {
+  const texture = useTexture(textureUrl);
+
+  useEffect(() => {
+    texture.colorSpace = SRGBColorSpace;
+    texture.needsUpdate = true;
+  }, [texture]);
+
+  const { position, normal, scale, rotationDeg } = transform;
+  const quaternion = useMemo(() => {
+    const normalVector = new Vector3(...normal).normalize();
+    const base = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), normalVector);
+    const twist = new Quaternion().setFromAxisAngle(
+      normalVector,
+      (rotationDeg * Math.PI) / 180
+    );
+    return base.multiply(twist);
+  }, [normal, rotationDeg]);
+
+  const offsetPosition = useMemo<[number, number, number]>(() => {
+    const normalVector = new Vector3(...normal).normalize().multiplyScalar(0.004);
+    return [
+      position[0] + normalVector.x,
+      position[1] + normalVector.y,
+      position[2] + normalVector.z,
+    ];
+  }, [normal, position]);
+
+  return (
+    <mesh position={offsetPosition} quaternion={quaternion} renderOrder={24}>
+      <planeGeometry args={[scale, scale]} />
+      <meshStandardMaterial
+        map={texture}
+        transparent
+        alphaTest={0.05}
+        side={DoubleSide}
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={-5}
+        polygonOffsetUnits={-5}
+      />
+    </mesh>
+  );
 }
 
 function PlaceholderAvatar() {
@@ -966,6 +1052,16 @@ function App() {
     groups[0]?.types[0] || "top"
   );
   const [locale, setLocale] = useState<UiLocale>("ru");
+  const [isTextureUploadOpen, setIsTextureUploadOpen] = useState(false);
+  const [customTextureUrl, setCustomTextureUrl] = useState<string | null>(null);
+  const [isStickerEditMode, setIsStickerEditMode] = useState(false);
+  const [isStickerDragging, setIsStickerDragging] = useState(false);
+  const [stickerTransform, setStickerTransform] = useState<StickerTransform>({
+    position: [0, 0.35, 0.25],
+    normal: [0, 0, 1],
+    scale: 0.35,
+    rotationDeg: 0,
+  });
   const [selectedGender, setSelectedGender] = useState<UiGender>("male");
   const [selectedPresetId, setSelectedPresetId] = useState("preset-1");
   const [selectedHairColor, setSelectedHairColor] = useState<string>(HAIR_COLOR_SWATCHES[0]);
@@ -978,11 +1074,18 @@ function App() {
     Partial<Record<SupportedType, string>>
   >({});
   const previousPresetRef = useRef("preset-1");
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const browserLocale = navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
     setLocale(browserLocale);
   }, []);
+
+  useEffect(() => {
+    if (!isStickerEditMode) {
+      setIsStickerDragging(false);
+    }
+  }, [isStickerEditMode]);
 
   const presetOptions = useMemo(
     () => localLibrary.presets?.[selectedGender]?.items || [],
@@ -1297,6 +1400,52 @@ function App() {
     };
   }, [activeType, capabilityByAsset, selectedByType, selectedLocalByType, selectedPreset]);
 
+  const updateStickerTransformFromEvent = (event: ThreeEvent<PointerEvent>) => {
+    const surfaceHit = event.intersections.find((hit) => {
+      const data = (hit.object as { userData?: Record<string, unknown> }).userData;
+      return Boolean(data?.avatarSurface);
+    });
+
+    if (!surfaceHit) {
+      return;
+    }
+
+    const hitObject = surfaceHit.object;
+    const worldNormal = surfaceHit.face
+      ? surfaceHit.face.normal.clone().transformDirection(hitObject.matrixWorld).normalize()
+      : new Vector3(0, 0, 1);
+
+    setStickerTransform((current) => ({
+      ...current,
+      position: [surfaceHit.point.x, surfaceHit.point.y, surfaceHit.point.z],
+      normal: [worldNormal.x, worldNormal.y, worldNormal.z],
+    }));
+  };
+
+  const handleTextureUpload = (file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : null;
+      if (!result) {
+        return;
+      }
+
+      setCustomTextureUrl((current) => {
+        if (current && current.startsWith("blob:")) {
+          URL.revokeObjectURL(current);
+        }
+        return result;
+      });
+      setIsStickerEditMode(true);
+      setIsTextureUploadOpen(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSelectAsset = (asset: AssetRecord) => {
     const id = String(asset.id);
 
@@ -1372,16 +1521,71 @@ function App() {
           >
             <span className="locale-chip locale-chip--active">{locale === "ru" ? "R" : "E"}</span>
           </button>
+          <button
+            className="texture-button"
+            type="button"
+            onClick={() => setIsTextureUploadOpen(true)}
+            aria-label={copy.textureUploadTitle}
+          >
+            {copy.texture}
+          </button>
           <button className="next-button" type="button">
             {copy.next} <span aria-hidden>→</span>
           </button>
         </div>
+
+        {customTextureUrl ? (
+          <div className="sticker-controls">
+            <label className="sticker-check">
+              <input
+                type="checkbox"
+                checked={isStickerEditMode}
+                onChange={(event) => setIsStickerEditMode(event.target.checked)}
+              />
+              <span>{copy.textureEditMode}</span>
+            </label>
+            <label className="sticker-slider">
+              <span>{copy.textureScale}</span>
+              <input
+                type="range"
+                min={0.08}
+                max={0.9}
+                step={0.01}
+                value={stickerTransform.scale}
+                onChange={(event) =>
+                  setStickerTransform((current) => ({
+                    ...current,
+                    scale: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+            <label className="sticker-slider">
+              <span>{copy.textureRotation}</span>
+              <input
+                type="range"
+                min={-180}
+                max={180}
+                step={1}
+                value={stickerTransform.rotationDeg}
+                onChange={(event) =>
+                  setStickerTransform((current) => ({
+                    ...current,
+                    rotationDeg: Number(event.target.value),
+                  }))
+                }
+              />
+            </label>
+          </div>
+        ) : null}
 
         <div className="stage-canvas-wrap">
           <Canvas
             shadows="percentage"
             dpr={[1, 2]}
             camera={{ position: [0, 1.34, 5.05], fov: 31 }}
+            onPointerUp={() => setIsStickerDragging(false)}
+            onPointerLeave={() => setIsStickerDragging(false)}
           >
             <color attach="background" args={["#ffffff"]} />
             <ambientLight intensity={0.62} />
@@ -1402,51 +1606,73 @@ function App() {
             <directionalLight position={[-2.4, 1.8, -1.8]} intensity={0.42} />
 
             <Suspense fallback={<SceneLoader />}>
-              {selectedPreset?.baseModelUrl ? (
-                <AvatarModel
-                  modelUrl={selectedPreset.baseModelUrl}
-                  hiddenMeshes={composedScene.hiddenBaseMeshes}
-                  tintByMesh={tintByMesh}
-                  idleAnimationUrl={idleAnimationUrl}
-                />
-              ) : (
-                <PlaceholderAvatar />
-              )}
+              <group
+                onPointerDown={(event) => {
+                  if (!customTextureUrl || !isStickerEditMode) return;
+                  updateStickerTransformFromEvent(event);
+                  setIsStickerDragging(true);
+                  event.stopPropagation();
+                }}
+                onPointerMove={(event) => {
+                  if (!customTextureUrl || !isStickerEditMode || !isStickerDragging) return;
+                  updateStickerTransformFromEvent(event);
+                  event.stopPropagation();
+                }}
+                onPointerUp={(event) => {
+                  if (!customTextureUrl || !isStickerEditMode) return;
+                  setIsStickerDragging(false);
+                  event.stopPropagation();
+                }}
+              >
+                {selectedPreset?.baseModelUrl ? (
+                  <AvatarModel
+                    modelUrl={selectedPreset.baseModelUrl}
+                    hiddenMeshes={composedScene.hiddenBaseMeshes}
+                    tintByMesh={tintByMesh}
+                    idleAnimationUrl={idleAnimationUrl}
+                  />
+                ) : (
+                  <PlaceholderAvatar />
+                )}
 
-              {composedScene.parts.map((part) => (
-                <AvatarModel
-                  key={`${part.modelUrl}:${part.includeMeshes.join("|")}`}
-                  modelUrl={part.modelUrl}
-                  includeMeshes={part.includeMeshes}
-                  tintByMesh={tintByMesh}
-                  idleAnimationUrl={idleAnimationUrl}
-                />
-              ))}
+                {composedScene.parts.map((part) => (
+                  <AvatarModel
+                    key={`${part.modelUrl}:${part.includeMeshes.join("|")}`}
+                    modelUrl={part.modelUrl}
+                    includeMeshes={part.includeMeshes}
+                    tintByMesh={tintByMesh}
+                    idleAnimationUrl={idleAnimationUrl}
+                  />
+                ))}
 
-              {composedScene.beardMaskUrl && composedScene.beardMaskModelUrl ? (
-                <AvatarHeadMaskLayer
-                  modelUrl={composedScene.beardMaskModelUrl}
-                  maskUrl={composedScene.beardMaskUrl}
-                  idleAnimationUrl={idleAnimationUrl}
-                />
-              ) : null}
-              {composedScene.eyebrowMaskUrl && composedScene.eyebrowMaskModelUrl ? (
-                <AvatarHeadMaskLayer
-                  modelUrl={composedScene.eyebrowMaskModelUrl}
-                  maskUrl={composedScene.eyebrowMaskUrl}
-                  idleAnimationUrl={idleAnimationUrl}
-                  tintColor={selectedEyebrowColor}
-                  renderOrder={21}
-                />
-              ) : null}
-              {composedScene.facemaskMaskUrl && composedScene.facemaskMaskModelUrl ? (
-                <AvatarHeadMaskLayer
-                  modelUrl={composedScene.facemaskMaskModelUrl}
-                  maskUrl={composedScene.facemaskMaskUrl}
-                  idleAnimationUrl={idleAnimationUrl}
-                  renderOrder={22}
-                />
-              ) : null}
+                {composedScene.beardMaskUrl && composedScene.beardMaskModelUrl ? (
+                  <AvatarHeadMaskLayer
+                    modelUrl={composedScene.beardMaskModelUrl}
+                    maskUrl={composedScene.beardMaskUrl}
+                    idleAnimationUrl={idleAnimationUrl}
+                  />
+                ) : null}
+                {composedScene.eyebrowMaskUrl && composedScene.eyebrowMaskModelUrl ? (
+                  <AvatarHeadMaskLayer
+                    modelUrl={composedScene.eyebrowMaskModelUrl}
+                    maskUrl={composedScene.eyebrowMaskUrl}
+                    idleAnimationUrl={idleAnimationUrl}
+                    tintColor={selectedEyebrowColor}
+                    renderOrder={21}
+                  />
+                ) : null}
+                {composedScene.facemaskMaskUrl && composedScene.facemaskMaskModelUrl ? (
+                  <AvatarHeadMaskLayer
+                    modelUrl={composedScene.facemaskMaskModelUrl}
+                    maskUrl={composedScene.facemaskMaskUrl}
+                    idleAnimationUrl={idleAnimationUrl}
+                    renderOrder={22}
+                  />
+                ) : null}
+                {customTextureUrl ? (
+                  <SurfaceSticker textureUrl={customTextureUrl} transform={stickerTransform} />
+                ) : null}
+              </group>
 
               <ContactShadows
                 position={[0, -1.06, 0]}
@@ -1466,6 +1692,7 @@ function App() {
             <OrbitControls
               makeDefault
               enablePan
+              enabled={!isStickerDragging}
               enableDamping
               dampingFactor={0.09}
               minDistance={0.65}
@@ -1516,6 +1743,53 @@ function App() {
                 aria-label={`${colorPanelLabel} ${color}`}
               />
             ))}
+          </div>
+        ) : null}
+
+        <input
+          ref={uploadInputRef}
+          type="file"
+          accept="image/png"
+          className="texture-file-input"
+          onChange={(event) => {
+            const file = event.target.files?.[0] || null;
+            handleTextureUpload(file);
+            event.currentTarget.value = "";
+          }}
+        />
+
+        {isTextureUploadOpen ? (
+          <div className="texture-modal-backdrop" onClick={() => setIsTextureUploadOpen(false)}>
+            <div
+              className="texture-modal"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              <h3>{copy.textureUploadTitle}</h3>
+              <p>{copy.textureUploadHint}</p>
+              <div className="texture-modal-actions">
+                <button
+                  type="button"
+                  className="texture-modal-btn"
+                  onClick={() => uploadInputRef.current?.click()}
+                >
+                  {copy.texturePickFile}
+                </button>
+                {customTextureUrl ? (
+                  <button
+                    type="button"
+                    className="texture-modal-btn texture-modal-btn--danger"
+                    onClick={() => {
+                      setCustomTextureUrl(null);
+                      setIsStickerEditMode(false);
+                    }}
+                  >
+                    {copy.textureRemove}
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
         ) : null}
       </section>
