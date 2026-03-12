@@ -105,50 +105,39 @@ body {
   gap: 8px;
 }
 
-.gear-button,
+.paint-toggle-button,
 .next-button,
-.locale-toggle,
-.texture-button {
+.locale-toggle {
   z-index: 8;
   border: 1px solid #191919;
   cursor: pointer;
   transition: transform 120ms ease, filter 120ms ease;
 }
 
-.gear-button:hover,
+.paint-toggle-button:hover,
 .next-button:hover,
-.locale-toggle:hover,
-.texture-button:hover {
+.locale-toggle:hover {
   transform: translateY(-1px);
   filter: brightness(1.06);
 }
 
-.gear-button {
+.paint-toggle-button {
+  position: absolute;
   top: 14px;
   left: 14px;
   width: 44px;
   height: 44px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #e6e6e6 0%, #cfcfcf 100%);
+  border-radius: 12px;
+  background: #ffffff;
   display: grid;
   place-items: center;
 }
 
-.gear-button span {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid #1e1e1e;
-  position: relative;
-}
-
-.gear-button span::before,
-.gear-button span::after {
-  content: "";
-  position: absolute;
-  inset: -5px;
-  border-radius: 50%;
-  border: 2px dotted #1e1e1e;
+.paint-toggle-button span {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1d1d1d;
+  line-height: 1;
 }
 
 .next-button {
@@ -174,16 +163,6 @@ body {
   justify-content: center;
 }
 
-.texture-button {
-  min-width: 48px;
-  height: 40px;
-  border-radius: 12px;
-  background: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  color: #1d1d1d;
-}
-
 .locale-chip {
   min-width: 28px;
   height: 28px;
@@ -205,19 +184,64 @@ body {
   margin-left: 6px;
 }
 
-.sticker-controls {
+.paint-panel {
   position: absolute;
-  top: 70px;
-  right: 16px;
+  top: 64px;
+  left: 14px;
   z-index: 8;
-  min-width: 238px;
+  width: min(330px, 44vw);
   display: grid;
-  gap: 6px;
-  padding: 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.26);
-  background: rgba(255, 255, 255, 0.94);
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid #bebebe;
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(4px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.paint-section {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d5d5d5;
+  border-radius: 10px;
+  padding: 8px;
+  background: #ffffff;
+}
+
+.paint-section__title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #171717;
+}
+
+.paint-panel-section {
+  display: grid;
+  gap: 8px;
+}
+
+.paint-panel-file {
+  min-height: 30px;
+  border: 1px solid #d0d0d0;
+  border-radius: 9px;
+  background: #f7f7f7;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2a2a2a;
+  display: flex;
+  align-items: center;
+}
+
+.paint-panel-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.paint-panel-note {
+  font-size: 11px;
+  color: #5a5a5a;
 }
 
 .sticker-check {
@@ -245,43 +269,6 @@ body {
   display: none;
 }
 
-.texture-modal-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 18;
-  background: rgba(0, 0, 0, 0.25);
-  display: grid;
-  place-items: center;
-}
-
-.texture-modal {
-  width: min(92vw, 390px);
-  border-radius: 14px;
-  border: 1px solid #1c1c1c;
-  background: #ffffff;
-  padding: 16px;
-  display: grid;
-  gap: 10px;
-}
-
-.texture-modal h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #111111;
-}
-
-.texture-modal p {
-  margin: 0;
-  font-size: 13px;
-  color: #222222;
-}
-
-.texture-modal-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .texture-modal-btn {
   border: 1px solid #1a1a1a;
   border-radius: 10px;
@@ -296,6 +283,118 @@ body {
 .texture-modal-btn--danger {
   color: #9f1f1f;
   border-color: #9f1f1f;
+}
+
+.export-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgba(8, 14, 32, 0.36);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+}
+
+.export-modal {
+  position: relative;
+  width: min(760px, 92vw);
+  min-height: min(760px, 86vh);
+  border-radius: 24px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.18);
+}
+
+.export-modal__close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #1c1c1c;
+  font-size: 34px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.export-modal__preview {
+  display: grid;
+  place-items: center;
+  padding: 34px 34px 10px;
+}
+
+.export-modal__preview img {
+  width: min(420px, 100%);
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 22px;
+  background: #ffffff;
+}
+
+.export-modal__panel {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 4px 34px 32px;
+  text-align: center;
+  color: #1b1b1b;
+  background: #ffffff;
+}
+
+.export-modal__title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #121212;
+}
+
+.export-modal__hint,
+.export-modal__label,
+.export-modal__busy {
+  max-width: 520px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #5b5b5b;
+}
+
+.export-modal__label {
+  margin-top: 4px;
+}
+
+.export-modal__link {
+  min-height: 40px;
+  min-width: min(520px, 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #f4f4f4;
+  border: 1px solid #dddddd;
+  color: #202020;
+  word-break: break-all;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.export-modal__download {
+  min-width: min(520px, 100%);
+  min-height: 48px;
+  border-radius: 14px;
+  display: grid;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  background: linear-gradient(180deg, #14d9ea 0%, #08c2d2 100%);
+  border: 1px solid #161616;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 800;
 }
 
 .canvas-loader {
@@ -595,7 +694,7 @@ body {
     font-size: 18px;
   }
 
-  .gear-button {
+  .paint-toggle-button {
     width: 42px;
     height: 42px;
   }
@@ -604,7 +703,12 @@ body {
     height: 38px;
   }
 
-  .texture-button {
-    height: 38px;
+  .export-modal {
+    width: min(92vw, 560px);
+    min-height: auto;
+  }
+
+  .export-modal__panel {
+    padding: 4px 18px 22px;
   }
 }

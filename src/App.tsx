@@ -1,5 +1,5 @@
 ﻿import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, ThreeEvent, useFrame } from "@react-three/fiber";
+import { Canvas, ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import {
   ContactShadows,
   Html,
@@ -12,20 +12,31 @@ import {
   CanvasTexture,
   Color,
   DoubleSide,
+  Euler,
   Group,
+  Mesh,
   MOUSE,
   MeshStandardMaterial,
   AnimationClip,
   AnimationMixer,
+  Camera,
   Quaternion,
   SRGBColorSpace,
+  Scene,
+  Texture,
+  TextureLoader,
+  Vector2,
   Vector3,
+  WebGLRenderer,
 } from "three";
+import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry.js";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import assetSchema from "./config/asset-schema.json";
 import assetDataset from "./data/assets-catalog.json";
 import localAssetCapabilitiesManifest from "./data/generated/local-asset-capabilities.json";
 import localLibraryManifest from "./data/generated/local-library-manifest.json";
+import { PaintPanel } from "./components/PaintPanel";
 
 type SupportedType =
   | "top"
@@ -192,6 +203,23 @@ const UI_TEXT: Record<
     textureEditMode: string;
     textureScale: string;
     textureRotation: string;
+    textureModeDecal: string;
+    textureModeReplace: string;
+    uploadDecal: string;
+    uploadTexture: string;
+    removeDecal: string;
+    removeTexture: string;
+    notLoaded: string;
+    paintPanel: string;
+    textureScaleX: string;
+    textureScaleY: string;
+    replaceHint: string;
+    exportPreviewTitle: string;
+    exportPreviewHint: string;
+    exportDownload: string;
+    exportClose: string;
+    exportLinkLabel: string;
+    exportBusy: string;
   }
 > = {
   ru: {
@@ -205,7 +233,7 @@ const UI_TEXT: Record<
     beardColor: "Цвет бороды",
     eyebrowColor: "Цвет бровей",
     lipColor: "Цвет губ",
-    texture: "PNG",
+    texture: "◈",
     textureUploadTitle: "Своя текстура",
     textureUploadHint: "Загрузите PNG и двигайте по поверхности аватара",
     texturePickFile: "Выбрать PNG",
@@ -213,6 +241,23 @@ const UI_TEXT: Record<
     textureEditMode: "Двигать по модели",
     textureScale: "Размер",
     textureRotation: "Поворот",
+    textureModeDecal: "Декаль",
+    textureModeReplace: "Замена текстуры",
+    uploadDecal: "Загрузить декаль",
+    uploadTexture: "Загрузить текстуру",
+    removeDecal: "Удалить декаль",
+    removeTexture: "Удалить текстуру",
+    notLoaded: "Не загружено",
+    paintPanel: "Панель наложения",
+    textureScaleX: "Scale X",
+    textureScaleY: "Scale Y",
+    replaceHint: "Для замены выберите: Верх / Низ / Обувь / Образы",
+    exportPreviewTitle: "Экспорт аватара",
+    exportPreviewHint: "Локальный предпросмотр и скачивание текущего .glb",
+    exportDownload: "Скачать .glb",
+    exportClose: "Закрыть",
+    exportLinkLabel: "Локальный файл .glb:",
+    exportBusy: "Подготавливаю .glb...",
   },
   en: {
     next: "NEXT",
@@ -225,7 +270,7 @@ const UI_TEXT: Record<
     beardColor: "Beard color",
     eyebrowColor: "Eyebrow color",
     lipColor: "Lip color",
-    texture: "PNG",
+    texture: "◈",
     textureUploadTitle: "Custom texture",
     textureUploadHint: "Upload PNG and drag it across avatar surface",
     texturePickFile: "Choose PNG",
@@ -233,6 +278,23 @@ const UI_TEXT: Record<
     textureEditMode: "Move on model",
     textureScale: "Scale",
     textureRotation: "Rotation",
+    textureModeDecal: "Decal",
+    textureModeReplace: "Texture replace",
+    uploadDecal: "Upload decal",
+    uploadTexture: "Upload texture",
+    removeDecal: "Remove decal",
+    removeTexture: "Remove texture",
+    notLoaded: "Not loaded",
+    paintPanel: "Overlay panel",
+    textureScaleX: "Scale X",
+    textureScaleY: "Scale Y",
+    replaceHint: "Choose Tops / Bottoms / Footwear / Outfits for replacement",
+    exportPreviewTitle: "Avatar export",
+    exportPreviewHint: "Local preview and download for current .glb",
+    exportDownload: "Download .glb",
+    exportClose: "Close",
+    exportLinkLabel: "Local .glb file:",
+    exportBusy: "Preparing .glb...",
   },
 };
 
@@ -377,16 +439,30 @@ function AvatarModel({
   hiddenMeshes,
   tintByMesh,
   idleAnimationUrl,
+  replaceTextureUrl,
+  replaceTextureMeshes,
+  replaceTextureScale = 0.35,
+  replaceTextureScaleX = 1,
+  replaceTextureScaleY = 1,
+  replaceTextureRotationDeg = 0,
 }: {
   modelUrl: string;
   includeMeshes?: readonly MeshSlot[];
   hiddenMeshes?: readonly MeshSlot[];
   tintByMesh?: MeshTintMap;
   idleAnimationUrl: string;
+  replaceTextureUrl?: string | null;
+  replaceTextureMeshes?: readonly MeshSlot[];
+  replaceTextureScale?: number;
+  replaceTextureScaleX?: number;
+  replaceTextureScaleY?: number;
+  replaceTextureRotationDeg?: number;
 }) {
   const { scene } = useGLTF(modelUrl) as { scene: Group };
+  const [replacementTexture, setReplacementTexture] = useState<Texture | null>(null);
   const includeKey = includeMeshes?.join("|") || "";
   const hiddenKey = hiddenMeshes?.join("|") || "";
+  const replaceMeshesKey = replaceTextureMeshes?.join("|") || "";
   const tintKey = useMemo(
     () =>
       Object.entries(tintByMesh || {})
@@ -396,10 +472,89 @@ function AvatarModel({
     [tintByMesh]
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!replaceTextureUrl) {
+      setReplacementTexture(null);
+      return;
+    }
+
+    const loader = new TextureLoader();
+    loader.load(replaceTextureUrl, (texture) => {
+      if (cancelled) {
+        texture.dispose();
+        return;
+      }
+      texture.colorSpace = SRGBColorSpace;
+      texture.flipY = false;
+      texture.needsUpdate = true;
+      setReplacementTexture(texture);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [replaceTextureUrl]);
+
   const preparedScene = useMemo(() => {
     const includeSet = includeMeshes ? new Set(includeMeshes) : null;
     const hiddenSet = new Set(hiddenMeshes || []);
+    const replaceSet = new Set(replaceTextureMeshes || []);
     const textureTintCache = new Map<string, CanvasTexture>();
+    const applyTextureReplacement = (material: unknown): unknown => {
+      if (!replacementTexture) {
+        return material;
+      }
+
+      const replaceOne = (entry: unknown): unknown => {
+        if (!entry || typeof entry !== "object") {
+          return entry;
+        }
+
+        const materialEntry = entry as {
+          clone?: () => unknown;
+        };
+        if (typeof materialEntry.clone !== "function") {
+          return entry;
+        }
+
+        const clonedMaterial = materialEntry.clone() as {
+          map?: unknown;
+          color?: { set?: (value: string) => void };
+          transparent?: boolean;
+          needsUpdate?: boolean;
+        };
+        const textured = replacementTexture.clone();
+        textured.colorSpace = SRGBColorSpace;
+        textured.flipY = false;
+        textured.center.set(0.5, 0.5);
+        textured.rotation = (replaceTextureRotationDeg * Math.PI) / 180;
+        const uniform = Math.max(0.2, replaceTextureScale);
+        const scaleX = Math.max(0.2, replaceTextureScaleX);
+        const scaleY = Math.max(0.2, replaceTextureScaleY);
+        const repeatX = Math.max(0.1, Math.min(8, 1 / (uniform * scaleX)));
+        const repeatY = Math.max(0.1, Math.min(8, 1 / (uniform * scaleY)));
+        textured.repeat.set(repeatX, repeatY);
+        textured.offset.set((1 - repeatX) * 0.5, (1 - repeatY) * 0.5);
+        textured.needsUpdate = true;
+
+        clonedMaterial.map = textured;
+        clonedMaterial.color?.set?.("#ffffff");
+        if ("transparent" in clonedMaterial) {
+          clonedMaterial.transparent = true;
+        }
+        if ("needsUpdate" in clonedMaterial) {
+          clonedMaterial.needsUpdate = true;
+        }
+        return clonedMaterial;
+      };
+
+      if (Array.isArray(material)) {
+        return material.map((entry) => replaceOne(entry));
+      }
+
+      return replaceOne(material);
+    };
     const cloneMaterialWithTint = (material: unknown, tint: MeshTintEntry): unknown => {
       const tintOne = (entry: unknown): unknown => {
         if (!entry || typeof entry !== "object") {
@@ -633,13 +788,33 @@ function AvatarModel({
       }
 
       const tintEntry = mesh.name ? tintByMesh?.[mesh.name] : null;
+      const shouldReplaceTexture =
+        replacementTexture && replaceSet.has(mesh.name as MeshSlot);
+      if (shouldReplaceTexture && mesh.material) {
+        mesh.material = applyTextureReplacement(mesh.material);
+      }
       if (tintEntry && mesh.material) {
         mesh.material = cloneMaterialWithTint(mesh.material, tintEntry);
       }
     });
 
     return cloned;
-  }, [hiddenKey, includeKey, includeMeshes, hiddenMeshes, scene, tintByMesh, tintKey]);
+  }, [
+    hiddenKey,
+    includeKey,
+    includeMeshes,
+    hiddenMeshes,
+    replaceMeshesKey,
+    replaceTextureMeshes,
+    replacementTexture,
+    replaceTextureRotationDeg,
+    replaceTextureScale,
+    replaceTextureScaleX,
+    replaceTextureScaleY,
+    scene,
+    tintByMesh,
+    tintKey,
+  ]);
   useIdleAnimation(preparedScene, idleAnimationUrl);
   return <primitive object={preparedScene} position={POSITION_OFFSET} />;
 }
@@ -783,44 +958,55 @@ function AvatarHeadMaskLayer({
 function SurfaceSticker({
   textureUrl,
   transform,
+  targetMesh,
 }: {
   textureUrl: string;
   transform: StickerTransform;
+  targetMesh: Mesh | null;
 }) {
   const texture = useTexture(textureUrl);
 
   useEffect(() => {
     texture.colorSpace = SRGBColorSpace;
+    texture.flipY = false;
     texture.needsUpdate = true;
   }, [texture]);
 
-  const { position, normal, scale, rotationDeg } = transform;
-  const quaternion = useMemo(() => {
+  const geometry = useMemo(() => {
+    if (!targetMesh) {
+      return null;
+    }
+
+    const { position, normal, scale, rotationDeg } = transform;
     const normalVector = new Vector3(...normal).normalize();
     const base = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), normalVector);
     const twist = new Quaternion().setFromAxisAngle(
       normalVector,
       (rotationDeg * Math.PI) / 180
     );
-    return base.multiply(twist);
-  }, [normal, rotationDeg]);
+    const orientation = new Euler().setFromQuaternion(base.multiply(twist));
+    const decalPosition = new Vector3(...position);
+    const decalSize = new Vector3(scale, scale, scale);
 
-  const offsetPosition = useMemo<[number, number, number]>(() => {
-    const normalVector = new Vector3(...normal).normalize().multiplyScalar(0.004);
-    return [
-      position[0] + normalVector.x,
-      position[1] + normalVector.y,
-      position[2] + normalVector.z,
-    ];
-  }, [normal, position]);
+    return new DecalGeometry(targetMesh, decalPosition, orientation, decalSize);
+  }, [targetMesh, transform]);
+
+  useEffect(() => {
+    return () => {
+      geometry?.dispose();
+    };
+  }, [geometry]);
+
+  if (!geometry) {
+    return null;
+  }
 
   return (
-    <mesh position={offsetPosition} quaternion={quaternion} renderOrder={24}>
-      <planeGeometry args={[scale, scale]} />
+    <mesh geometry={geometry} renderOrder={24}>
       <meshStandardMaterial
         map={texture}
         transparent
-        alphaTest={0.05}
+        alphaTest={0.02}
         side={DoubleSide}
         depthWrite={false}
         polygonOffset
@@ -829,6 +1015,51 @@ function SurfaceSticker({
       />
     </mesh>
   );
+}
+
+function AutoStickerProjector({
+  enabled,
+  hasTarget,
+  onPick,
+}: {
+  enabled: boolean;
+  hasTarget: boolean;
+  onPick: (payload: { mesh: Mesh; point: Vector3; normal: Vector3 }) => void;
+}) {
+  const { scene, camera, raycaster } = useThree();
+  const pickedRef = useRef(false);
+  const centerNdc = useMemo(() => new Vector2(0, 0), []);
+
+  useEffect(() => {
+    pickedRef.current = false;
+  }, [enabled, hasTarget]);
+
+  useFrame(() => {
+    if (!enabled || hasTarget || pickedRef.current) {
+      return;
+    }
+
+    raycaster.setFromCamera(centerNdc, camera);
+    const hits = raycaster
+      .intersectObjects(scene.children, true)
+      .filter((hit) =>
+        Boolean((hit.object as { userData?: Record<string, unknown> }).userData?.avatarSurface)
+      );
+
+    const hit = hits[0];
+    if (!hit) {
+      return;
+    }
+
+    const mesh = hit.object as Mesh;
+    const normal = hit.face
+      ? hit.face.normal.clone().transformDirection(mesh.matrixWorld).normalize()
+      : new Vector3(0, 0, 1);
+    pickedRef.current = true;
+    onPick({ mesh, point: hit.point.clone(), normal });
+  });
+
+  return null;
 }
 
 function PlaceholderAvatar() {
@@ -870,6 +1101,20 @@ function ClearAssetIcon() {
       <path d="M18 46L46 18" fill="none" stroke="currentColor" strokeWidth="5" />
     </svg>
   );
+}
+
+function SceneBridge({
+  onReady,
+}: {
+  onReady: (payload: { renderer: WebGLRenderer; scene: Scene; camera: Camera }) => void;
+}) {
+  const { gl, scene, camera } = useThree();
+
+  useEffect(() => {
+    onReady({ renderer: gl, scene, camera });
+  }, [camera, gl, onReady, scene]);
+
+  return null;
 }
 
 function PresetPreviewImage({ src, alt }: { src: string; alt: string }) {
@@ -1047,21 +1292,80 @@ function PresetPreviewImage({ src, alt }: { src: string; alt: string }) {
   return <img src={normalizedSrc} alt={alt} loading="lazy" />;
 }
 
+function ExportPreviewModal({
+  copy,
+  previewUrl,
+  downloadUrl,
+  fileName,
+  onClose,
+}: {
+  copy: (typeof UI_TEXT)[UiLocale];
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  fileName: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="export-modal-backdrop" onClick={onClose}>
+      <div
+        className="export-modal"
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        <button className="export-modal__close" type="button" onClick={onClose}>
+          ×
+        </button>
+        <div className="export-modal__preview">
+          {previewUrl ? <img src={previewUrl} alt={copy.exportPreviewTitle} /> : null}
+        </div>
+        <div className="export-modal__panel">
+          <div className="export-modal__title">{copy.exportPreviewTitle}</div>
+          <div className="export-modal__hint">{copy.exportPreviewHint}</div>
+          {downloadUrl ? (
+            <>
+              <div className="export-modal__label">{copy.exportLinkLabel}</div>
+              <div className="export-modal__link">{fileName}</div>
+              <a className="export-modal__download" href={downloadUrl} download={fileName}>
+                {copy.exportDownload}
+              </a>
+            </>
+          ) : (
+            <div className="export-modal__busy">{copy.exportBusy}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [activeType, setActiveType] = useState<SupportedType>(
     groups[0]?.types[0] || "top"
   );
   const [locale, setLocale] = useState<UiLocale>("ru");
-  const [isTextureUploadOpen, setIsTextureUploadOpen] = useState(false);
-  const [customTextureUrl, setCustomTextureUrl] = useState<string | null>(null);
+  const [isPaintPanelOpen, setIsPaintPanelOpen] = useState(false);
+  const [decalTextureUrl, setDecalTextureUrl] = useState<string | null>(null);
+  const [replaceTextureUrlState, setReplaceTextureUrlState] = useState<string | null>(null);
+  const [decalFileName, setDecalFileName] = useState<string>("");
+  const [replaceFileName, setReplaceFileName] = useState<string>("");
   const [isStickerEditMode, setIsStickerEditMode] = useState(false);
   const [isStickerDragging, setIsStickerDragging] = useState(false);
-  const [stickerTransform, setStickerTransform] = useState<StickerTransform>({
+  const [stickerTargetMesh, setStickerTargetMesh] = useState<Mesh | null>(null);
+  const [decalTransform, setDecalTransform] = useState<StickerTransform>({
     position: [0, 0.35, 0.25],
     normal: [0, 0, 1],
     scale: 0.35,
     rotationDeg: 0,
   });
+  const [replaceScale, setReplaceScale] = useState(0.35);
+  const [replaceScaleX, setReplaceScaleX] = useState(1);
+  const [replaceScaleY, setReplaceScaleY] = useState(1);
+  const [replaceRotationDeg, setReplaceRotationDeg] = useState(0);
+  const [exportPreviewUrl, setExportPreviewUrl] = useState<string | null>(null);
+  const [exportDownloadUrl, setExportDownloadUrl] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFileName, setExportFileName] = useState("metasibir-avatar.glb");
   const [selectedGender, setSelectedGender] = useState<UiGender>("male");
   const [selectedPresetId, setSelectedPresetId] = useState("preset-1");
   const [selectedHairColor, setSelectedHairColor] = useState<string>(HAIR_COLOR_SWATCHES[0]);
@@ -1074,7 +1378,12 @@ function App() {
     Partial<Record<SupportedType, string>>
   >({});
   const previousPresetRef = useRef("preset-1");
-  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const decalUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const textureUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const avatarExportGroupRef = useRef<Group | null>(null);
+  const rendererRef = useRef<WebGLRenderer | null>(null);
+  const sceneRef = useRef<Scene | null>(null);
+  const cameraRef = useRef<Camera | null>(null);
 
   useEffect(() => {
     const browserLocale = navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
@@ -1086,6 +1395,18 @@ function App() {
       setIsStickerDragging(false);
     }
   }, [isStickerEditMode]);
+
+  useEffect(() => {
+    setStickerTargetMesh(null);
+  }, [selectedGender, selectedPresetId]);
+
+  useEffect(() => {
+    return () => {
+      if (exportDownloadUrl) {
+        URL.revokeObjectURL(exportDownloadUrl);
+      }
+    };
+  }, [exportDownloadUrl]);
 
   const presetOptions = useMemo(
     () => localLibrary.presets?.[selectedGender]?.items || [],
@@ -1410,19 +1731,20 @@ function App() {
       return;
     }
 
-    const hitObject = surfaceHit.object;
+    const hitObject = surfaceHit.object as Mesh;
     const worldNormal = surfaceHit.face
       ? surfaceHit.face.normal.clone().transformDirection(hitObject.matrixWorld).normalize()
       : new Vector3(0, 0, 1);
 
-    setStickerTransform((current) => ({
+    setDecalTransform((current) => ({
       ...current,
       position: [surfaceHit.point.x, surfaceHit.point.y, surfaceHit.point.z],
       normal: [worldNormal.x, worldNormal.y, worldNormal.z],
     }));
+    setStickerTargetMesh(hitObject);
   };
 
-  const handleTextureUpload = (file: File | null) => {
+  const handleUploadByTarget = (file: File | null, target: "decal" | "replace") => {
     if (!file) {
       return;
     }
@@ -1434,14 +1756,25 @@ function App() {
         return;
       }
 
-      setCustomTextureUrl((current) => {
-        if (current && current.startsWith("blob:")) {
-          URL.revokeObjectURL(current);
-        }
-        return result;
-      });
-      setIsStickerEditMode(true);
-      setIsTextureUploadOpen(false);
+      if (target === "decal") {
+        setDecalTextureUrl((current) => {
+          if (current && current.startsWith("blob:")) {
+            URL.revokeObjectURL(current);
+          }
+          return result;
+        });
+        setDecalFileName(file.name);
+        setIsStickerEditMode(true);
+        setStickerTargetMesh(null);
+      } else {
+        setReplaceTextureUrlState((current) => {
+          if (current && current.startsWith("blob:")) {
+            URL.revokeObjectURL(current);
+          }
+          return result;
+        });
+        setReplaceFileName(file.name);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -1505,12 +1838,101 @@ function App() {
           : copy.hairColor;
   const typeLabels = TYPE_LABELS[locale];
   const idleAnimationUrl = IDLE_ANIMATION_URL[selectedGender];
+  const replacementSlots = useMemo<readonly MeshSlot[]>(() => {
+    if (activeType === "top") return [SLOT_NAMES.top];
+    if (activeType === "bottom") return [SLOT_NAMES.bottom];
+    if (activeType === "footwear") return [SLOT_NAMES.footwear];
+    if (activeType === "outfit")
+      return [SLOT_NAMES.top, SLOT_NAMES.bottom, SLOT_NAMES.footwear];
+    return [];
+  }, [activeType]);
+  const canUseReplacement = replacementSlots.length > 0;
+  const shouldReplaceTexture = Boolean(replaceTextureUrlState) && canUseReplacement;
+  const handleNext = () => {
+    const exportRoot = avatarExportGroupRef.current;
+    const renderer = rendererRef.current;
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    if (!exportRoot || !renderer || !scene || !camera) {
+      return;
+    }
+
+    renderer.render(scene, camera);
+
+    const sourceCanvas = renderer.domElement;
+    const previewCanvas = document.createElement("canvas");
+    const previewHeight = 1200;
+    const previewWidth = 900;
+    const cropHeight = sourceCanvas.height * 0.8;
+    const cropWidth = cropHeight * (previewWidth / previewHeight);
+    const cropX = Math.max(0, (sourceCanvas.width - cropWidth) * 0.5);
+    const cropY = Math.max(0, sourceCanvas.height * 0.05);
+    previewCanvas.width = previewWidth;
+    previewCanvas.height = previewHeight;
+    const previewContext = previewCanvas.getContext("2d");
+    if (!previewContext) {
+      return;
+    }
+    previewContext.fillStyle = "#ffffff";
+    previewContext.fillRect(0, 0, previewWidth, previewHeight);
+    previewContext.drawImage(
+      sourceCanvas,
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      previewWidth,
+      previewHeight
+    );
+    const previewUrl = previewCanvas.toDataURL("image/png");
+    setExportPreviewUrl(previewUrl);
+    setIsExportModalOpen(true);
+
+    setExportDownloadUrl((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      return null;
+    });
+
+    const exporter = new GLTFExporter();
+    const fileName = `metasibir-avatar-${selectedGender}-${selectedPresetId}.glb`;
+    setExportFileName(fileName);
+
+    exporter.parse(
+      exportRoot,
+      (result) => {
+        if (!(result instanceof ArrayBuffer)) {
+          return;
+        }
+        const blob = new Blob([result], { type: "model/gltf-binary" });
+        const url = URL.createObjectURL(blob);
+        setExportDownloadUrl((current) => {
+          if (current) {
+            URL.revokeObjectURL(current);
+          }
+          return url;
+        });
+      },
+      (error) => {
+        console.error("Failed to export GLB", error);
+      },
+      { binary: true, onlyVisible: true }
+    );
+  };
 
   return (
     <main className="creator-shell">
       <section className="stage-panel">
-        <button className="gear-button" type="button" aria-label={copy.settings}>
-          <span />
+        <button
+          className="paint-toggle-button"
+          type="button"
+          aria-label={copy.paintPanel}
+          onClick={() => setIsPaintPanelOpen((current) => !current)}
+        >
+          <span>{isPaintPanelOpen ? "×" : "◈"}</span>
         </button>
         <div className="stage-toolbar">
           <button
@@ -1521,72 +1943,84 @@ function App() {
           >
             <span className="locale-chip locale-chip--active">{locale === "ru" ? "R" : "E"}</span>
           </button>
-          <button
-            className="texture-button"
-            type="button"
-            onClick={() => setIsTextureUploadOpen(true)}
-            aria-label={copy.textureUploadTitle}
-          >
-            {copy.texture}
-          </button>
-          <button className="next-button" type="button">
+          <button className="next-button" type="button" onClick={handleNext}>
             {copy.next} <span aria-hidden>→</span>
           </button>
         </div>
 
-        {customTextureUrl ? (
-          <div className="sticker-controls">
-            <label className="sticker-check">
-              <input
-                type="checkbox"
-                checked={isStickerEditMode}
-                onChange={(event) => setIsStickerEditMode(event.target.checked)}
-              />
-              <span>{copy.textureEditMode}</span>
-            </label>
-            <label className="sticker-slider">
-              <span>{copy.textureScale}</span>
-              <input
-                type="range"
-                min={0.08}
-                max={0.9}
-                step={0.01}
-                value={stickerTransform.scale}
-                onChange={(event) =>
-                  setStickerTransform((current) => ({
-                    ...current,
-                    scale: Number(event.target.value),
-                  }))
+        {isPaintPanelOpen ? (
+          <PaintPanel
+            copy={copy}
+            decalFileName={decalFileName}
+            hasDecal={Boolean(decalTextureUrl)}
+            onUploadDecal={() => decalUploadInputRef.current?.click()}
+            onRemoveDecal={() => {
+              setDecalTextureUrl((current) => {
+                if (current && current.startsWith("blob:")) {
+                  URL.revokeObjectURL(current);
                 }
-              />
-            </label>
-            <label className="sticker-slider">
-              <span>{copy.textureRotation}</span>
-              <input
-                type="range"
-                min={-180}
-                max={180}
-                step={1}
-                value={stickerTransform.rotationDeg}
-                onChange={(event) =>
-                  setStickerTransform((current) => ({
-                    ...current,
-                    rotationDeg: Number(event.target.value),
-                  }))
+                return null;
+              });
+              setDecalFileName("");
+              setStickerTargetMesh(null);
+              setIsStickerEditMode(false);
+            }}
+            isDecalEditMode={isStickerEditMode}
+            onToggleDecalEditMode={setIsStickerEditMode}
+            decalScale={decalTransform.scale}
+            onDecalScale={(value) =>
+              setDecalTransform((current) => ({
+                ...current,
+                scale: value,
+              }))
+            }
+            decalRotationDeg={decalTransform.rotationDeg}
+            onDecalRotationDeg={(value) =>
+              setDecalTransform((current) => ({
+                ...current,
+                rotationDeg: value,
+              }))
+            }
+            textureFileName={replaceFileName}
+            hasTexture={Boolean(replaceTextureUrlState)}
+            canUseReplacement={canUseReplacement}
+            onUploadTexture={() => textureUploadInputRef.current?.click()}
+            onRemoveTexture={() => {
+              setReplaceTextureUrlState((current) => {
+                if (current && current.startsWith("blob:")) {
+                  URL.revokeObjectURL(current);
                 }
-              />
-            </label>
-          </div>
+                return null;
+              });
+              setReplaceFileName("");
+            }}
+            replaceScale={replaceScale}
+            onReplaceScale={setReplaceScale}
+            replaceScaleX={replaceScaleX}
+            onReplaceScaleX={setReplaceScaleX}
+            replaceScaleY={replaceScaleY}
+            onReplaceScaleY={setReplaceScaleY}
+            replaceRotationDeg={replaceRotationDeg}
+            onReplaceRotationDeg={setReplaceRotationDeg}
+          />
         ) : null}
 
         <div className="stage-canvas-wrap">
           <Canvas
             shadows="percentage"
             dpr={[1, 2]}
+            gl={{ preserveDrawingBuffer: true, antialias: true }}
             camera={{ position: [0, 1.34, 5.05], fov: 31 }}
             onPointerUp={() => setIsStickerDragging(false)}
             onPointerLeave={() => setIsStickerDragging(false)}
           >
+            <SceneBridge
+              onReady={({ renderer, scene, camera }) => {
+                rendererRef.current = renderer;
+                sceneRef.current = scene;
+                cameraRef.current = camera;
+              }}
+            />
             <color attach="background" args={["#ffffff"]} />
             <ambientLight intensity={0.62} />
             <hemisphereLight intensity={0.36} groundColor="#cfcfcf" />
@@ -1607,19 +2041,21 @@ function App() {
 
             <Suspense fallback={<SceneLoader />}>
               <group
+                ref={avatarExportGroupRef}
                 onPointerDown={(event) => {
-                  if (!customTextureUrl || !isStickerEditMode) return;
+                  if (!decalTextureUrl || !isStickerEditMode) return;
                   updateStickerTransformFromEvent(event);
                   setIsStickerDragging(true);
                   event.stopPropagation();
                 }}
                 onPointerMove={(event) => {
-                  if (!customTextureUrl || !isStickerEditMode || !isStickerDragging) return;
+                  if (!decalTextureUrl || !isStickerEditMode || !isStickerDragging)
+                    return;
                   updateStickerTransformFromEvent(event);
                   event.stopPropagation();
                 }}
                 onPointerUp={(event) => {
-                  if (!customTextureUrl || !isStickerEditMode) return;
+                  if (!decalTextureUrl || !isStickerEditMode) return;
                   setIsStickerDragging(false);
                   event.stopPropagation();
                 }}
@@ -1630,6 +2066,12 @@ function App() {
                     hiddenMeshes={composedScene.hiddenBaseMeshes}
                     tintByMesh={tintByMesh}
                     idleAnimationUrl={idleAnimationUrl}
+                    replaceTextureUrl={shouldReplaceTexture ? replaceTextureUrlState : null}
+                    replaceTextureMeshes={shouldReplaceTexture ? replacementSlots : []}
+                    replaceTextureScale={replaceScale}
+                    replaceTextureScaleX={replaceScaleX}
+                    replaceTextureScaleY={replaceScaleY}
+                    replaceTextureRotationDeg={replaceRotationDeg}
                   />
                 ) : (
                   <PlaceholderAvatar />
@@ -1642,6 +2084,12 @@ function App() {
                     includeMeshes={part.includeMeshes}
                     tintByMesh={tintByMesh}
                     idleAnimationUrl={idleAnimationUrl}
+                    replaceTextureUrl={shouldReplaceTexture ? replaceTextureUrlState : null}
+                    replaceTextureMeshes={shouldReplaceTexture ? replacementSlots : []}
+                    replaceTextureScale={replaceScale}
+                    replaceTextureScaleX={replaceScaleX}
+                    replaceTextureScaleY={replaceScaleY}
+                    replaceTextureRotationDeg={replaceRotationDeg}
                   />
                 ))}
 
@@ -1669,18 +2117,34 @@ function App() {
                     renderOrder={22}
                   />
                 ) : null}
-                {customTextureUrl ? (
-                  <SurfaceSticker textureUrl={customTextureUrl} transform={stickerTransform} />
+                {decalTextureUrl ? (
+                  <SurfaceSticker
+                    textureUrl={decalTextureUrl}
+                    transform={decalTransform}
+                    targetMesh={stickerTargetMesh}
+                  />
                 ) : null}
               </group>
+              <AutoStickerProjector
+                enabled={Boolean(decalTextureUrl)}
+                hasTarget={Boolean(stickerTargetMesh)}
+                onPick={({ mesh, point, normal }) => {
+                  setStickerTargetMesh(mesh);
+                  setDecalTransform((current) => ({
+                    ...current,
+                    position: [point.x, point.y, point.z],
+                    normal: [normal.x, normal.y, normal.z],
+                  }));
+                }}
+              />
 
               <ContactShadows
                 position={[0, -1.06, 0]}
-                opacity={0.32}
-                width={3.4}
-                height={3.4}
-                blur={2.8}
-                far={1.8}
+                opacity={0.24}
+                width={3.8}
+                height={3.8}
+                blur={3.9}
+                far={2.3}
               />
             </Suspense>
 
@@ -1747,50 +2211,35 @@ function App() {
         ) : null}
 
         <input
-          ref={uploadInputRef}
+          ref={decalUploadInputRef}
           type="file"
           accept="image/png"
           className="texture-file-input"
           onChange={(event) => {
             const file = event.target.files?.[0] || null;
-            handleTextureUpload(file);
+            handleUploadByTarget(file, "decal");
             event.currentTarget.value = "";
           }}
         />
-
-        {isTextureUploadOpen ? (
-          <div className="texture-modal-backdrop" onClick={() => setIsTextureUploadOpen(false)}>
-            <div
-              className="texture-modal"
-              onClick={(event) => {
-                event.stopPropagation();
-              }}
-            >
-              <h3>{copy.textureUploadTitle}</h3>
-              <p>{copy.textureUploadHint}</p>
-              <div className="texture-modal-actions">
-                <button
-                  type="button"
-                  className="texture-modal-btn"
-                  onClick={() => uploadInputRef.current?.click()}
-                >
-                  {copy.texturePickFile}
-                </button>
-                {customTextureUrl ? (
-                  <button
-                    type="button"
-                    className="texture-modal-btn texture-modal-btn--danger"
-                    onClick={() => {
-                      setCustomTextureUrl(null);
-                      setIsStickerEditMode(false);
-                    }}
-                  >
-                    {copy.textureRemove}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </div>
+        <input
+          ref={textureUploadInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/jpg"
+          className="texture-file-input"
+          onChange={(event) => {
+            const file = event.target.files?.[0] || null;
+            handleUploadByTarget(file, "replace");
+            event.currentTarget.value = "";
+          }}
+        />
+        {isExportModalOpen ? (
+          <ExportPreviewModal
+            copy={copy}
+            previewUrl={exportPreviewUrl}
+            downloadUrl={exportDownloadUrl}
+            fileName={exportFileName}
+            onClose={() => setIsExportModalOpen(false)}
+          />
         ) : null}
       </section>
 
