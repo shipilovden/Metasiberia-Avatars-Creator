@@ -805,6 +805,10 @@ body {
   padding: 6px;
 }
 
+.asset-grid--footwear .asset-card {
+  min-height: 92px;
+}
+
 .asset-card--active {
   border-color: #00d9e8;
   box-shadow: 0 0 0 1px rgba(0, 217, 232, 0.42) inset;
@@ -830,6 +834,11 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.asset-thumb-wrap--footwear img {
+  transform: translateY(-18%) scale(1.45);
+  transform-origin: center center;
 }
 
 .asset-thumb-wrap--clear {

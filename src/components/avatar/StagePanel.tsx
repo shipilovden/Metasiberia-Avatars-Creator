@@ -76,7 +76,7 @@ export type StagePanelProps = {
   }) => void;
   showColorPanel: boolean;
   colorPanelLabel: string;
-  selectedColor: string;
+  selectedColor: string | null;
   onSelectColor: (color: string) => void;
   decalUploadInputRef: MutableRefObject<HTMLInputElement | null>;
   textureUploadInputRef: MutableRefObject<HTMLInputElement | null>;

@@ -98,7 +98,7 @@ export function AssetSidebar({
           ))}
         </div>
 
-        <div className="asset-grid">
+        <div className={`asset-grid${activeType === "footwear" ? " asset-grid--footwear" : ""}`}>
           <button
             type="button"
             className={`asset-card asset-card--clear${selectedAssetId ? "" : " asset-card--active"}`}
@@ -125,7 +125,9 @@ export function AssetSidebar({
                 onClick={() => onSelectAsset(asset)}
                 title={`${asset.name} (${id})`}
               >
-                <span className="asset-thumb-wrap">
+                <span
+                  className={`asset-thumb-wrap${activeType === "footwear" ? " asset-thumb-wrap--footwear" : ""}`}
+                >
                   {imageSrc ? <img src={imageSrc} alt={asset.name} loading="lazy" /> : null}
                 </span>
               </button>

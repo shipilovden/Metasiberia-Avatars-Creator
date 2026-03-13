@@ -84,8 +84,8 @@ function App() {
   const [exportFileName, setExportFileName] = useState("metasibir-avatar.glb");
   const [selectedGender, setSelectedGender] = useState<UiGender>("male");
   const [selectedPresetId, setSelectedPresetId] = useState("preset-1");
-  const [selectedHairColor, setSelectedHairColor] = useState<string>(HAIR_COLOR_SWATCHES[0]);
-  const [selectedBeardColor, setSelectedBeardColor] = useState<string>(HAIR_COLOR_SWATCHES[0]);
+  const [selectedHairColor, setSelectedHairColor] = useState<string | null>(null);
+  const [selectedBeardColor, setSelectedBeardColor] = useState<string | null>(null);
   const [selectedEyebrowColor, setSelectedEyebrowColor] = useState<string>(
     HAIR_COLOR_SWATCHES[0]
   );
@@ -346,19 +346,26 @@ function App() {
 
   const selectedPreset =
     presetOptions.find((preset) => preset.id === selectedPresetId) || presetOptions[0] || null;
-  const tintByMesh = useMemo<MeshTintMap>(
-    () => ({
-      [SLOT_NAMES.hair]: { color: selectedHairColor, mode: "flat" },
-      "Wolf3D_Hair.001": { color: selectedHairColor, mode: "flat" },
-      "hair-60": { color: selectedHairColor, mode: "flat" },
-      low: { color: selectedHairColor, mode: "flat" },
-      [SLOT_NAMES.beard]: { color: selectedBeardColor, mode: "flat" },
-      [SLOT_NAMES.head]: selectedByType.lipshape
-        ? { color: selectedLipColor, mode: "lips" }
-        : undefined,
-    }),
-    [selectedBeardColor, selectedByType.lipshape, selectedHairColor, selectedLipColor]
-  );
+  const tintByMesh = useMemo<MeshTintMap>(() => {
+    const next: MeshTintMap = {};
+
+    if (selectedHairColor) {
+      next[SLOT_NAMES.hair] = { color: selectedHairColor, mode: "flat" };
+      next["Wolf3D_Hair.001"] = { color: selectedHairColor, mode: "flat" };
+      next["hair-60"] = { color: selectedHairColor, mode: "flat" };
+      next.low = { color: selectedHairColor, mode: "flat" };
+    }
+
+    if (selectedBeardColor) {
+      next[SLOT_NAMES.beard] = { color: selectedBeardColor, mode: "flat" };
+    }
+
+    if (selectedByType.lipshape) {
+      next[SLOT_NAMES.head] = { color: selectedLipColor, mode: "lips" };
+    }
+
+    return next;
+  }, [selectedBeardColor, selectedByType.lipshape, selectedHairColor, selectedLipColor]);
   const composedScene = useMemo(() => {
     const slotOwners = new Map<MeshSlot, string>();
     const getUrl = (type: SupportedType) => selectedLocalByType.get(type)?.glbUrl || null;
