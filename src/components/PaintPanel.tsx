@@ -15,14 +15,24 @@ type Copy = {
   avatarStatic: string;
 };
 
-type PaintPanelProps = {
+type DecalFileItem = {
+  id: string;
+  fileName: string;
+  isSelected: boolean;
+};
+
+export type PaintPanelProps = {
   copy: Copy;
-  decalFileName: string;
+  decalFiles: readonly DecalFileItem[];
   hasDecal: boolean;
   onUploadDecal: () => void;
   onRemoveDecal: () => void;
+  onSelectDecalFile: (id: string) => void;
+  onRemoveDecalFile: (id: string) => void;
   isUvEditorOpen: boolean;
   onToggleUvEditor: () => void;
+  isTextureUvEditorOpen: boolean;
+  onToggleTextureUvEditor: () => void;
   isDecalEditMode: boolean;
   onToggleDecalEditMode: (next: boolean) => void;
   decalScale: number;
@@ -46,14 +56,24 @@ type PaintPanelProps = {
   onToggleAvatarStatic: (next: boolean) => void;
 };
 
+const clampNumber = (value: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, value));
+
+const DECAL_SCALE_MIN = 0.005;
+const DECAL_SCALE_MAX = 0.9;
+
 export function PaintPanel({
   copy,
-  decalFileName,
+  decalFiles,
   hasDecal,
   onUploadDecal,
   onRemoveDecal,
+  onSelectDecalFile,
+  onRemoveDecalFile,
   isUvEditorOpen,
   onToggleUvEditor,
+  isTextureUvEditorOpen,
+  onToggleTextureUvEditor,
   isDecalEditMode,
   onToggleDecalEditMode,
   decalScale,
@@ -100,7 +120,38 @@ export function PaintPanel({
             UV
           </button>
         </div>
-        <div className="paint-panel-file">{decalFileName || copy.notLoaded}</div>
+
+        {decalFiles.length ? (
+          <div className="paint-panel-file-list">
+            {decalFiles.map((file) => (
+              <div
+                key={file.id}
+                className={`paint-panel-file-row${file.isSelected ? " paint-panel-file-row--active" : ""}`}
+              >
+                <button
+                  type="button"
+                  className="paint-panel-file-row__select"
+                  onClick={() => onSelectDecalFile(file.id)}
+                  title={file.fileName}
+                >
+                  {file.fileName}
+                </button>
+                <button
+                  type="button"
+                  className="paint-panel-file-row__delete"
+                  onClick={() => onRemoveDecalFile(file.id)}
+                  aria-label={`${copy.removeDecal}: ${file.fileName}`}
+                  title={copy.removeDecal}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="paint-panel-file">{copy.notLoaded}</div>
+        )}
+
         <div className="paint-panel-actions">
           <button type="button" className="texture-modal-btn" onClick={onUploadDecal}>
             {copy.uploadDecal}
@@ -114,6 +165,7 @@ export function PaintPanel({
             {copy.removeDecal}
           </button>
         </div>
+
         <label className="sticker-check">
           <input
             type="checkbox"
@@ -123,34 +175,79 @@ export function PaintPanel({
           />
           <span>{copy.textureEditMode}</span>
         </label>
+
         <label className="sticker-slider">
           <span>{copy.textureScale}</span>
-          <input
-            type="range"
-            min={0.08}
-            max={0.9}
-            step={0.01}
-            value={decalScale}
-            onChange={(event) => onDecalScale(Number(event.target.value))}
-            disabled={!hasDecal}
-          />
+          <div className="sticker-slider__controls">
+            <input
+              type="range"
+              min={DECAL_SCALE_MIN}
+              max={DECAL_SCALE_MAX}
+              step={0.005}
+              value={decalScale}
+              onChange={(event) => onDecalScale(Number(event.target.value))}
+              disabled={!hasDecal}
+            />
+            <input
+              type="number"
+              className="sticker-slider__number"
+              min={DECAL_SCALE_MIN}
+              max={DECAL_SCALE_MAX}
+              step={0.005}
+              value={decalScale}
+              onChange={(event) => {
+                const nextValue = Number(event.target.value);
+                if (Number.isFinite(nextValue)) {
+                  onDecalScale(clampNumber(nextValue, DECAL_SCALE_MIN, DECAL_SCALE_MAX));
+                }
+              }}
+              disabled={!hasDecal}
+            />
+          </div>
         </label>
+
         <label className="sticker-slider">
           <span>{copy.textureRotation}</span>
-          <input
-            type="range"
-            min={-180}
-            max={180}
-            step={1}
-            value={decalRotationDeg}
-            onChange={(event) => onDecalRotationDeg(Number(event.target.value))}
-            disabled={!hasDecal}
-          />
+          <div className="sticker-slider__controls">
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              step={1}
+              value={decalRotationDeg}
+              onChange={(event) => onDecalRotationDeg(Number(event.target.value))}
+              disabled={!hasDecal}
+            />
+            <input
+              type="number"
+              className="sticker-slider__number"
+              min={-180}
+              max={180}
+              step={1}
+              value={decalRotationDeg}
+              onChange={(event) => {
+                const nextValue = Number(event.target.value);
+                if (Number.isFinite(nextValue)) {
+                  onDecalRotationDeg(clampNumber(nextValue, -180, 180));
+                }
+              }}
+              disabled={!hasDecal}
+            />
+          </div>
         </label>
       </div>
 
       <div className="paint-section">
-        <div className="paint-section__title">{copy.textureModeReplace}</div>
+        <div className="paint-section__title-row">
+          <div className="paint-section__title">{copy.textureModeReplace}</div>
+          <button
+            type="button"
+            className={`paint-section__mini-btn${isTextureUvEditorOpen ? " paint-section__mini-btn--active" : ""}`}
+            onClick={onToggleTextureUvEditor}
+          >
+            UV
+          </button>
+        </div>
         <div className="paint-panel-file">{textureFileName || copy.notLoaded}</div>
         <div className="paint-panel-actions">
           <button type="button" className="texture-modal-btn" onClick={onUploadTexture}>
@@ -168,51 +265,119 @@ export function PaintPanel({
         {!canUseReplacement ? <div className="paint-panel-note">{copy.replaceHint}</div> : null}
         <label className="sticker-slider">
           <span>{copy.textureScale}</span>
-          <input
-            type="range"
-            min={0.2}
-            max={3}
-            step={0.01}
-            value={replaceScale}
-            onChange={(event) => onReplaceScale(Number(event.target.value))}
-            disabled={!hasTexture || !canUseReplacement}
-          />
+          <div className="sticker-slider__controls">
+            <input
+              type="range"
+              min={0.2}
+              max={3}
+              step={0.01}
+              value={replaceScale}
+              onChange={(event) => onReplaceScale(Number(event.target.value))}
+              disabled={!hasTexture || !canUseReplacement}
+            />
+            <input
+              type="number"
+              className="sticker-slider__number"
+              min={0.2}
+              max={3}
+              step={0.01}
+              value={replaceScale}
+              onChange={(event) => {
+                const nextValue = Number(event.target.value);
+                if (Number.isFinite(nextValue)) {
+                  onReplaceScale(clampNumber(nextValue, 0.2, 3));
+                }
+              }}
+              disabled={!hasTexture || !canUseReplacement}
+            />
+          </div>
         </label>
         <label className="sticker-slider">
           <span>{copy.textureScaleX}</span>
-          <input
-            type="range"
-            min={0.2}
-            max={3}
-            step={0.01}
-            value={replaceScaleX}
-            onChange={(event) => onReplaceScaleX(Number(event.target.value))}
-            disabled={!hasTexture || !canUseReplacement}
-          />
+          <div className="sticker-slider__controls">
+            <input
+              type="range"
+              min={0.2}
+              max={3}
+              step={0.01}
+              value={replaceScaleX}
+              onChange={(event) => onReplaceScaleX(Number(event.target.value))}
+              disabled={!hasTexture || !canUseReplacement}
+            />
+            <input
+              type="number"
+              className="sticker-slider__number"
+              min={0.2}
+              max={3}
+              step={0.01}
+              value={replaceScaleX}
+              onChange={(event) => {
+                const nextValue = Number(event.target.value);
+                if (Number.isFinite(nextValue)) {
+                  onReplaceScaleX(clampNumber(nextValue, 0.2, 3));
+                }
+              }}
+              disabled={!hasTexture || !canUseReplacement}
+            />
+          </div>
         </label>
         <label className="sticker-slider">
           <span>{copy.textureScaleY}</span>
-          <input
-            type="range"
-            min={0.2}
-            max={3}
-            step={0.01}
-            value={replaceScaleY}
-            onChange={(event) => onReplaceScaleY(Number(event.target.value))}
-            disabled={!hasTexture || !canUseReplacement}
-          />
+          <div className="sticker-slider__controls">
+            <input
+              type="range"
+              min={0.2}
+              max={3}
+              step={0.01}
+              value={replaceScaleY}
+              onChange={(event) => onReplaceScaleY(Number(event.target.value))}
+              disabled={!hasTexture || !canUseReplacement}
+            />
+            <input
+              type="number"
+              className="sticker-slider__number"
+              min={0.2}
+              max={3}
+              step={0.01}
+              value={replaceScaleY}
+              onChange={(event) => {
+                const nextValue = Number(event.target.value);
+                if (Number.isFinite(nextValue)) {
+                  onReplaceScaleY(clampNumber(nextValue, 0.2, 3));
+                }
+              }}
+              disabled={!hasTexture || !canUseReplacement}
+            />
+          </div>
         </label>
         <label className="sticker-slider">
           <span>{copy.textureRotation}</span>
-          <input
-            type="range"
-            min={-180}
-            max={180}
-            step={1}
-            value={replaceRotationDeg}
-            onChange={(event) => onReplaceRotationDeg(Number(event.target.value))}
-            disabled={!hasTexture || !canUseReplacement}
-          />
+          <div className="sticker-slider__controls">
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              step={1}
+              value={replaceRotationDeg}
+              onChange={(event) => onReplaceRotationDeg(Number(event.target.value))}
+              disabled={!hasTexture || !canUseReplacement}
+            />
+            <input
+              type="number"
+              className="sticker-slider__number"
+              min={-180}
+              max={180}
+              step={1}
+              value={replaceRotationDeg}
+              onChange={(event) => {
+                const nextValue = Number(event.target.value);
+                if (Number.isFinite(nextValue)) {
+                  onReplaceRotationDeg(clampNumber(nextValue, -180, 180));
+                }
+              }}
+              disabled={!hasTexture || !canUseReplacement}
+            />
+          </div>
         </label>
       </div>
     </div>

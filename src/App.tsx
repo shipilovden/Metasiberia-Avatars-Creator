@@ -1,2581 +1,48 @@
-﻿import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ThreeEvent } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
+import { Camera, Group, Mesh, Scene, Vector3, WebGLRenderer } from "three";
+import type { PaintPanelProps } from "./components/PaintPanel";
+import type { UvDecalEditorProps } from "./components/UvDecalEditor";
+import { AssetSidebar } from "./components/avatar/AssetSidebar";
+import { StagePanel } from "./components/avatar/StagePanel";
 import {
-  ContactShadows,
-  Html,
-  OrbitControls,
-  useGLTF,
-  useProgress,
-  useTexture,
-} from "@react-three/drei";
+  applyAssetToAvatarAssets,
+  createAnonymousUser,
+  createAvatarFromTemplate,
+  patchAvatarGlb,
+  postProcessExportedAvatarBlob,
+} from "./components/avatar/export-utils";
 import {
-  CanvasTexture,
-  Color,
-  DoubleSide,
-  Euler,
-  Group,
-  Material,
-  Mesh,
-  MOUSE,
-  MeshStandardMaterial,
-  AnimationClip,
-  AnimationMixer,
-  Camera,
-  Quaternion,
-  Raycaster,
-  SRGBColorSpace,
-  Scene,
-  Texture,
-  TextureLoader,
-  Vector2,
-  Vector3,
-  WebGLRenderer,
-  ClampToEdgeWrapping,
-} from "three";
-import { DecalGeometry } from "three/examples/jsm/geometries/DecalGeometry.js";
-import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
-import assetSchema from "./config/asset-schema.json";
-import assetDataset from "./data/assets-catalog.json";
-import localAssetCapabilitiesManifest from "./data/generated/local-asset-capabilities.json";
-import localLibraryManifest from "./data/generated/local-library-manifest.json";
-import { PaintPanel } from "./components/PaintPanel";
-import { UvDecalEditor } from "./components/UvDecalEditor";
-
-type SupportedType =
-  | "top"
-  | "bottom"
-  | "footwear"
-  | "outfit"
-  | "hair"
-  | "eye"
-  | "eyeshape"
-  | "eyebrows"
-  | "faceshape"
-  | "noseshape"
-  | "lipshape"
-  | "glasses"
-  | "headwear"
-  | "beard"
-  | "facewear"
-  | "facemask";
-
-type UiGender = "male" | "female";
-type AssetGender = UiGender | "neutral";
-
-type AssetRecord = {
-  id: string | number;
-  name: string;
-  type: SupportedType;
-  gender: AssetGender;
-  bodyType?: string;
-  iconUrl?: string;
-  maskUrl?: string;
-  beardStyle?: string;
-};
-
-type GroupSchema = {
-  id: string;
-  label: string;
-  types: SupportedType[];
-};
-
-type LocalItem = {
-  id: string;
-  type: SupportedType;
-  glbUrl: string;
-  iconUrl: string | null;
-  error: string | null;
-};
-
-type LocalPreset = {
-  id: string;
-  label: string;
-  gender: UiGender;
-  templateId: string;
-  baseModelUrl: string | null;
-  previewUrl: string | null;
-};
-
-type LocalGenderLibrary = {
-  gender: UiGender;
-  defaultPresetId: string;
-  baseModelUrl: string | null;
-  items: LocalItem[];
-};
-
-type LocalLibraryManifest = {
-  libraries: Record<UiGender, LocalGenderLibrary>;
-  presets: Record<
-    UiGender,
-    {
-      defaultPresetId: string;
-      items: LocalPreset[];
-    }
-  >;
-};
-
-type LocalAssetCapabilitiesManifest = {
-  items: Record<
-    string,
-    {
-      meshes: string[];
-      hasBeard: boolean;
-      hasFacewear: boolean;
-      hasGlasses: boolean;
-      hasHair: boolean;
-      hasHeadwear: boolean;
-      hasTop: boolean;
-      hasBottom: boolean;
-      hasFootwear: boolean;
-    }
-  >;
-};
-
-type UiLocale = "ru" | "en";
-type StickerTransform = {
-  position: [number, number, number];
-  normal: [number, number, number];
-  uv?: [number, number];
-  scale: number;
-  rotationDeg: number;
-};
-type AppliedUvDecal = {
-  meshName: MeshSlot;
-  uv: [number, number];
-  scale: number;
-  rotationDeg: number;
-  textureUrl: string;
-};
-
-const getAppliedUvDecalsForMesh = (
-  appliedUvDecals: readonly AppliedUvDecal[],
-  meshName: string
-) => appliedUvDecals.filter((entry) => entry.meshName === meshName);
-
-const groups = assetSchema.groups as GroupSchema[];
-const allTypes = assetSchema.types as { id: SupportedType; label: string }[];
-const datasetAssets = assetDataset.assets as AssetRecord[];
-const localAssetCapabilities =
-  localAssetCapabilitiesManifest as LocalAssetCapabilitiesManifest;
-const localLibrary = localLibraryManifest as LocalLibraryManifest;
-const RPM_API_BASE = "https://api.readyplayer.me";
-const RPM_APP_NAME =
-  (assetDataset as { source?: { subdomain?: string } }).source?.subdomain || "demo";
-
-const TYPE_TO_AVATAR_ASSET_KEY: Partial<Record<SupportedType, string>> = {
-  top: "top",
-  bottom: "bottom",
-  footwear: "footwear",
-  outfit: "outfit",
-  hair: "hairStyle",
-  eye: "eyeColor",
-  eyeshape: "eyeStyle",
-  eyebrows: "eyebrowStyle",
-  faceshape: "faceShape",
-  noseshape: "noseShape",
-  lipshape: "lipShape",
-  glasses: "glasses",
-  headwear: "headwear",
-  beard: "beardStyle",
-  facewear: "facewear",
-  facemask: "faceMask",
-};
-
-const TYPE_LABELS: Record<UiLocale, Record<SupportedType, string>> = {
-  ru: {
-    top: "Верх",
-    bottom: "Низ",
-    footwear: "Обувь",
-    outfit: "Образы",
-    hair: "Волосы",
-    eye: "Глаза",
-    eyeshape: "Форма глаз",
-    eyebrows: "Брови",
-    faceshape: "Форма головы",
-    noseshape: "Форма носа",
-    lipshape: "Форма губ",
-    glasses: "Очки",
-    headwear: "Головные",
-    beard: "Борода",
-    facewear: "Маски",
-    facemask: "Грим",
-  },
-  en: {
-    top: "Tops",
-    bottom: "Bottoms",
-    footwear: "Footwear",
-    outfit: "Outfits",
-    hair: "Hair",
-    eye: "Eyes",
-    eyeshape: "Eye shape",
-    eyebrows: "Eyebrows",
-    faceshape: "Head shape",
-    noseshape: "Nose shape",
-    lipshape: "Lip shape",
-    glasses: "Glasses",
-    headwear: "Headwear",
-    beard: "Beard",
-    facewear: "Facewear",
-    facemask: "Face paint",
-  },
-};
-
-const UI_TEXT: Record<
+  datasetAssets,
+  FACIAL_FEATURE_TYPES,
+  getAppliedUvDecalsForMesh,
+  groups,
+  HAIR_COLOR_SWATCHES,
+  IDLE_ANIMATION_URL,
+  localAssetCapabilities,
+  localLibrary,
+  makeClientId,
+  makeLookupKey,
+  RPM_APP_NAME,
+  SLOT_NAMES,
+  TYPE_LABELS,
+  UI_TEXT,
+} from "./components/avatar/shared";
+import type {
+  AppliedUvDecal,
+  AssetRecord,
+  DecalAsset,
+  LocalItem,
+  MeshSlot,
+  MeshTintMap,
+  StickerTransform,
+  SupportedType,
+  UiGender,
   UiLocale,
-  {
-    next: string;
-    clearSelection: string;
-    settings: string;
-    male: string;
-    female: string;
-    preset: string;
-    hairColor: string;
-    beardColor?: string;
-    eyebrowColor?: string;
-    lipColor?: string;
-    texture: string;
-    textureUploadTitle: string;
-    textureUploadHint: string;
-    texturePickFile: string;
-    textureRemove: string;
-    textureEditMode: string;
-    textureScale: string;
-    textureRotation: string;
-    textureModeDecal: string;
-    textureModeReplace: string;
-    uploadDecal: string;
-    uploadTexture: string;
-    removeDecal: string;
-    removeTexture: string;
-    notLoaded: string;
-    paintPanel: string;
-    textureScaleX: string;
-    textureScaleY: string;
-    replaceHint: string;
-    avatarStatic: string;
-    uvEditorTitle: string;
-    uvEditorHint: string;
-    uvApply: string;
-    uvReset: string;
-    uvClearApplied: string;
-    uvTarget: string;
-    uvEmpty: string;
-    exportPreviewTitle: string;
-    exportPreviewHint: string;
-    exportDownload: string;
-    exportClose: string;
-    exportLinkLabel: string;
-    exportBusy: string;
-  }
-> = {
-  ru: {
-    next: "ДАЛЕЕ",
-    clearSelection: "Снять",
-    settings: "Настройки",
-    male: "Муж",
-    female: "Жен",
-    preset: "База",
-    hairColor: "Цвет волос",
-    beardColor: "Цвет бороды",
-    eyebrowColor: "Цвет бровей",
-    lipColor: "Цвет губ",
-    texture: "◈",
-    textureUploadTitle: "Своя текстура",
-    textureUploadHint: "Загрузите PNG и двигайте по поверхности аватара",
-    texturePickFile: "Выбрать PNG",
-    textureRemove: "Убрать",
-    textureEditMode: "Двигать по модели",
-    textureScale: "Размер",
-    textureRotation: "Поворот",
-    textureModeDecal: "Декаль",
-    textureModeReplace: "Замена текстуры",
-    uploadDecal: "Загрузить декаль",
-    uploadTexture: "Загрузить текстуру",
-    removeDecal: "Удалить декаль",
-    removeTexture: "Удалить текстуру",
-    notLoaded: "Не загружено",
-    paintPanel: "Панель наложения",
-    textureScaleX: "Scale X",
-    textureScaleY: "Scale Y",
-    replaceHint: "Для замены выберите: Верх / Низ / Обувь / Образы / Головные / Маски",
-    avatarStatic: "Неподвижный аватар",
-    uvEditorTitle: "UV-декаль",
-    uvEditorHint: "Двигайте декаль по UV-канве и нажмите применить",
-    uvApply: "Применить на аватар",
-    uvReset: "Сбросить",
-    uvClearApplied: "Очистить с аватара",
-    uvTarget: "Слот UV",
-    uvEmpty: "Для этого типа UV-редактор недоступен",
-    exportPreviewTitle: "Экспорт аватара",
-    exportPreviewHint: "Локальный предпросмотр и скачивание текущего .glb",
-    exportDownload: "Скачать .glb",
-    exportClose: "Закрыть",
-    exportLinkLabel: "Локальный файл .glb:",
-    exportBusy: "Подготавливаю .glb...",
-  },
-  en: {
-    next: "NEXT",
-    clearSelection: "Clear",
-    settings: "Settings",
-    male: "Male",
-    female: "Female",
-    preset: "Base",
-    hairColor: "Hair color",
-    beardColor: "Beard color",
-    eyebrowColor: "Eyebrow color",
-    lipColor: "Lip color",
-    texture: "◈",
-    textureUploadTitle: "Custom texture",
-    textureUploadHint: "Upload PNG and drag it across avatar surface",
-    texturePickFile: "Choose PNG",
-    textureRemove: "Remove",
-    textureEditMode: "Move on model",
-    textureScale: "Scale",
-    textureRotation: "Rotation",
-    textureModeDecal: "Decal",
-    textureModeReplace: "Texture replace",
-    uploadDecal: "Upload decal",
-    uploadTexture: "Upload texture",
-    removeDecal: "Remove decal",
-    removeTexture: "Remove texture",
-    notLoaded: "Not loaded",
-    paintPanel: "Overlay panel",
-    textureScaleX: "Scale X",
-    textureScaleY: "Scale Y",
-    replaceHint: "Choose Tops / Bottoms / Footwear / Outfits / Headwear / Facewear",
-    avatarStatic: "Static avatar",
-    uvEditorTitle: "UV decal",
-    uvEditorHint: "Move the decal on the UV canvas and apply it to the avatar",
-    uvApply: "Apply to avatar",
-    uvReset: "Reset",
-    uvClearApplied: "Clear from avatar",
-    uvTarget: "UV slot",
-    uvEmpty: "UV editor is not available for this type",
-    exportPreviewTitle: "Avatar export",
-    exportPreviewHint: "Local preview and download for current .glb",
-    exportDownload: "Download .glb",
-    exportClose: "Close",
-    exportLinkLabel: "Local .glb file:",
-    exportBusy: "Preparing .glb...",
-  },
-};
+} from "./components/avatar/shared";
 
-const POSITION_OFFSET: [number, number, number] = [0, -1.06, 0];
-const IDLE_ANIMATION_URL: Record<UiGender, string> = {
-  male: "/local-assets/animations/male-idle-animation.glb",
-  female: "/local-assets/animations/female-idle-animation.glb",
-};
-const HAIR_COLOR_SWATCHES = [
-  "#151515",
-  "#242424",
-  "#2d1f1a",
-  "#3b2a1f",
-  "#473225",
-  "#5b3b29",
-  "#6c4430",
-  "#7a4c30",
-  "#885437",
-  "#965733",
-  "#a76337",
-  "#b86b3b",
-  "#c97a3c",
-  "#d1863f",
-  "#df994a",
-  "#ebb04f",
-  "#f1c261",
-  "#f3d06f",
-  "#e9a95d",
-  "#de8e4e",
-  "#d8733f",
-  "#d34134",
-  "#cf3b51",
-  "#b93a67",
-  "#9d3d7b",
-  "#7f4a8f",
-  "#5e4d9f",
-  "#4155ae",
-  "#2e659f",
-  "#1f7389",
-  "#2c816f",
-  "#4d8a55",
-  "#739246",
-  "#9a8c40",
-  "#b3823f",
-  "#c4572e",
-  "#a83d24",
-  "#a48f66",
-  "#b09b77",
-  "#c2b289",
-  "#8d7964",
-  "#735f50",
-  "#5f4a41",
-  "#8b8b8b",
-  "#8f9394",
-  "#acb0b2",
-  "#c7cacb",
-  "#dddddd",
-  "#f2f2f2",
-] as const;
-
-const SLOT_NAMES = {
-  body: "Wolf3D_Body",
-  head: "Wolf3D_Head",
-  teeth: "Wolf3D_Teeth",
-  hair: "Wolf3D_Hair",
-  beard: "Wolf3D_Beard",
-  glasses: "Wolf3D_Glasses",
-  headwear: "Wolf3D_Headwear",
-  facewear: "Wolf3D_Facewear",
-  faceMask: "Wolf3D_FaceMask",
-  top: "Wolf3D_Outfit_Top",
-  bottom: "Wolf3D_Outfit_Bottom",
-  footwear: "Wolf3D_Outfit_Footwear",
-  eyeLeft: "EyeLeft",
-  eyeRight: "EyeRight",
-} as const;
-
-type MeshSlot = (typeof SLOT_NAMES)[keyof typeof SLOT_NAMES];
-type MeshTintMode = "flat" | "eyebrows" | "lips";
-type MeshTintEntry = { color: string; mode: MeshTintMode };
-type MeshTintMap = Partial<Record<string, MeshTintEntry>>;
-const FACIAL_FEATURE_TYPES: SupportedType[] = [
-  "faceshape",
-  "eyeshape",
-  "eyebrows",
-  "noseshape",
-  "lipshape",
-];
-
-const makeLookupKey = (type: string, id: string) => `${type}:${id}`;
-const useIdleAnimation = (scene: Group, idleAnimationUrl: string, enabled = true) => {
-  const mixerRef = useRef<AnimationMixer | null>(null);
-  const clipDurationRef = useRef<number>(0);
-  const { animations } = useGLTF(idleAnimationUrl) as {
-    scene: Group;
-    animations: AnimationClip[];
-  };
-
-  useEffect(() => {
-    if (!enabled) {
-      mixerRef.current?.stopAllAction();
-      mixerRef.current = null;
-      clipDurationRef.current = 0;
-      return;
-    }
-
-    const clip = animations[0];
-    if (!clip) {
-      return;
-    }
-
-    const mixer = new AnimationMixer(scene);
-    const action = mixer.clipAction(clip, scene);
-    action.reset();
-    action.play();
-    action.clampWhenFinished = false;
-    mixerRef.current = mixer;
-    clipDurationRef.current = Math.max(clip.duration || 0, 0.001);
-
-    return () => {
-      action.stop();
-      mixer.stopAllAction();
-      mixer.uncacheRoot(scene);
-      mixerRef.current = null;
-      clipDurationRef.current = 0;
-    };
-  }, [animations, enabled, scene]);
-
-  useFrame((state) => {
-    if (!enabled) {
-      return;
-    }
-
-    const mixer = mixerRef.current;
-    if (!mixer) {
-      return;
-    }
-
-    const duration = clipDurationRef.current;
-    if (duration <= 0) {
-      return;
-    }
-
-    // Drive all layered avatar parts from one absolute timeline.
-    const time = state.clock.getElapsedTime() % duration;
-    mixer.setTime(time);
-  });
-};
-
-const getPrimaryTextureMap = (material: unknown) => {
-  const entry = Array.isArray(material) ? material[0] : material;
-  const map = (entry as { map?: Texture | null } | null)?.map || null;
-  return map?.image ? map : null;
-};
-
-const drawReplacementPatternFromImage = ({
-  canvas,
-  image,
-  scale,
-  scaleX,
-  scaleY,
-  rotationDeg,
-}: {
-  canvas: HTMLCanvasElement;
-  image: CanvasImageSource;
-  scale: number;
-  scaleX: number;
-  scaleY: number;
-  rotationDeg: number;
-}) => {
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("Canvas 2D context is unavailable.");
-  }
-
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  const uniform = Math.max(0.2, scale);
-  const nextScaleX = Math.max(0.2, scaleX);
-  const nextScaleY = Math.max(0.2, scaleY);
-  const repeatX = Math.max(0.1, Math.min(8, 1 / (uniform * nextScaleX)));
-  const repeatY = Math.max(0.1, Math.min(8, 1 / (uniform * nextScaleY)));
-  const uvTransformTexture = new Texture();
-  uvTransformTexture.wrapS = ClampToEdgeWrapping;
-  uvTransformTexture.wrapT = ClampToEdgeWrapping;
-  uvTransformTexture.flipY = false;
-  uvTransformTexture.center.set(0.5, 0.5);
-  uvTransformTexture.rotation = (rotationDeg * Math.PI) / 180;
-  uvTransformTexture.repeat.set(repeatX, repeatY);
-  uvTransformTexture.offset.set((1 - repeatX) * 0.5, (1 - repeatY) * 0.5);
-  uvTransformTexture.updateMatrix();
-  const uv = new Vector2();
-
-  const sourceCanvas = document.createElement("canvas");
-  const sourceWidth = "width" in image ? Number(image.width) || 0 : 0;
-  const sourceHeight = "height" in image ? Number(image.height) || 0 : 0;
-  sourceCanvas.width = sourceWidth;
-  sourceCanvas.height = sourceHeight;
-  const sourceContext = sourceCanvas.getContext("2d");
-  if (!sourceContext || sourceWidth <= 0 || sourceHeight <= 0) {
-    return;
-  }
-
-  sourceContext.drawImage(image, 0, 0, sourceCanvas.width, sourceCanvas.height);
-  const sourcePixels = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-  const output = context.createImageData(canvas.width, canvas.height);
-
-  for (let y = 0; y < canvas.height; y += 1) {
-    const v = (y + 0.5) / canvas.height;
-    for (let x = 0; x < canvas.width; x += 1) {
-      const u = (x + 0.5) / canvas.width;
-      uv.set(u, v);
-      uvTransformTexture.transformUv(uv);
-
-      const sampleX = Math.max(
-        0,
-        Math.min(sourceCanvas.width - 1, Math.round(Math.max(0, Math.min(1, uv.x)) * (sourceCanvas.width - 1)))
-      );
-      const sampleY = Math.max(
-        0,
-        Math.min(sourceCanvas.height - 1, Math.round(Math.max(0, Math.min(1, uv.y)) * (sourceCanvas.height - 1)))
-      );
-
-      const sourceIndex = (sampleY * sourceCanvas.width + sampleX) * 4;
-      const targetIndex = (y * canvas.width + x) * 4;
-      output.data[targetIndex] = sourcePixels.data[sourceIndex];
-      output.data[targetIndex + 1] = sourcePixels.data[sourceIndex + 1];
-      output.data[targetIndex + 2] = sourcePixels.data[sourceIndex + 2];
-      output.data[targetIndex + 3] = sourcePixels.data[sourceIndex + 3];
-    }
-  }
-
-  context.putImageData(output, 0, 0);
-};
-
-const drawUvDecalOverlayToCanvas = ({
-  canvas,
-  decalImage,
-  uv,
-  scale,
-  rotationDeg,
-}: {
-  canvas: HTMLCanvasElement;
-  decalImage: CanvasImageSource;
-  uv: [number, number];
-  scale: number;
-  rotationDeg: number;
-}) => {
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("Canvas 2D context is unavailable.");
-  }
-
-  const centerX = uv[0] * canvas.width;
-  const centerY = (1 - uv[1]) * canvas.height;
-  const width = Math.max(16, canvas.width * scale);
-  const decalWidth = "width" in decalImage ? Number(decalImage.width) || 1 : 1;
-  const decalHeight = "height" in decalImage ? Number(decalImage.height) || 1 : 1;
-  const aspect = decalWidth / Math.max(1, decalHeight);
-  const height = width / Math.max(0.1, aspect);
-
-  context.save();
-  context.translate(centerX, centerY);
-  context.rotate((-rotationDeg * Math.PI) / 180);
-  context.drawImage(decalImage, -width / 2, -height / 2, width, height);
-  context.restore();
-};
-
-const buildCombinedPreviewTexture = async ({
-  baseMap,
-  replacementTexture,
-  replaceTextureScale,
-  replaceTextureScaleX,
-  replaceTextureScaleY,
-  replaceTextureRotationDeg,
-  appliedUvDecals,
-}: {
-  baseMap: Texture;
-  replacementTexture: Texture | null;
-  replaceTextureScale: number;
-  replaceTextureScaleX: number;
-  replaceTextureScaleY: number;
-  replaceTextureRotationDeg: number;
-  appliedUvDecals: readonly AppliedUvDecal[];
-}) => {
-  const baseImage = baseMap.image as CanvasImageSource | undefined;
-  const width = baseImage && "width" in baseImage ? Number(baseImage.width) || 0 : 0;
-  const height = baseImage && "height" in baseImage ? Number(baseImage.height) || 0 : 0;
-  if (!baseImage || width <= 0 || height <= 0) {
-    return null;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
-  if (!context) {
-    return null;
-  }
-
-  if (replacementTexture?.image) {
-    drawReplacementPatternFromImage({
-      canvas,
-      image: replacementTexture.image as CanvasImageSource,
-      scale: replaceTextureScale,
-      scaleX: replaceTextureScaleX,
-      scaleY: replaceTextureScaleY,
-      rotationDeg: replaceTextureRotationDeg,
-    });
-  } else {
-    context.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
-  }
-
-  for (const appliedUvDecal of appliedUvDecals) {
-    const decalImage = await readFileAsImage(
-      await fetch(appliedUvDecal.textureUrl).then((response) => response.blob())
-    );
-    drawUvDecalOverlayToCanvas({
-      canvas,
-      decalImage,
-      uv: appliedUvDecal.uv,
-      scale: appliedUvDecal.scale,
-      rotationDeg: appliedUvDecal.rotationDeg,
-    });
-  }
-
-  const bakedTexture = new CanvasTexture(canvas);
-  bakedTexture.colorSpace = SRGBColorSpace;
-  bakedTexture.flipY = false;
-  bakedTexture.needsUpdate = true;
-  return bakedTexture;
-};
-
-function AvatarModel({
-  modelUrl,
-  includeMeshes,
-  hiddenMeshes,
-  tintByMesh,
-  idleAnimationUrl,
-  replaceTextureUrl,
-  replaceTextureMeshes,
-  replaceTextureScale = 0.35,
-  replaceTextureScaleX = 1,
-  replaceTextureScaleY = 1,
-  replaceTextureRotationDeg = 0,
-  enableIdleAnimation = true,
-  appliedUvDecals = [],
-}: {
-  modelUrl: string;
-  includeMeshes?: readonly MeshSlot[];
-  hiddenMeshes?: readonly MeshSlot[];
-  tintByMesh?: MeshTintMap;
-  idleAnimationUrl: string;
-  replaceTextureUrl?: string | null;
-  replaceTextureMeshes?: readonly MeshSlot[];
-  replaceTextureScale?: number;
-  replaceTextureScaleX?: number;
-  replaceTextureScaleY?: number;
-  replaceTextureRotationDeg?: number;
-  enableIdleAnimation?: boolean;
-  appliedUvDecals?: readonly AppliedUvDecal[];
-}) {
-  const { scene } = useGLTF(modelUrl) as { scene: Group };
-  const [replacementTexture, setReplacementTexture] = useState<Texture | null>(null);
-  const [bakedPreviewMaps, setBakedPreviewMaps] = useState<Record<string, Texture>>({});
-  const bakedPreviewMapsRef = useRef<Record<string, Texture>>({});
-  const includeKey = includeMeshes?.join("|") || "";
-  const hiddenKey = hiddenMeshes?.join("|") || "";
-  const replaceMeshesKey = replaceTextureMeshes?.join("|") || "";
-  const tintKey = useMemo(
-    () =>
-      Object.entries(tintByMesh || {})
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([slot, color]) => `${slot}:${color}`)
-        .join("|"),
-    [tintByMesh]
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!replaceTextureUrl) {
-      setReplacementTexture(null);
-      return;
-    }
-
-    const loader = new TextureLoader();
-    loader.load(replaceTextureUrl, (texture) => {
-      if (cancelled) {
-        texture.dispose();
-        return;
-      }
-      texture.colorSpace = SRGBColorSpace;
-      texture.flipY = false;
-      texture.needsUpdate = true;
-      setReplacementTexture(texture);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [replaceTextureUrl]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const disposeQueue = Object.values(bakedPreviewMapsRef.current);
-
-    const bake = async () => {
-      const nextMaps: Record<string, Texture> = {};
-      const replaceSet = new Set(replaceTextureMeshes || []);
-
-      const tasks: Promise<void>[] = [];
-      scene.traverse((object) => {
-        const mesh = object as {
-          isMesh?: boolean;
-          name?: string;
-          material?: unknown;
-        };
-        if (!mesh.isMesh || !mesh.name) {
-          return;
-        }
-
-        const shouldReplace = Boolean(replacementTexture && replaceSet.has(mesh.name as MeshSlot));
-        const decalsForMesh = getAppliedUvDecalsForMesh(appliedUvDecals, mesh.name);
-        if (!shouldReplace && decalsForMesh.length === 0) {
-          return;
-        }
-
-        const baseMap = mesh.material ? getPrimaryTextureMap(mesh.material) : null;
-        if (!baseMap) {
-          return;
-        }
-
-        tasks.push(
-          buildCombinedPreviewTexture({
-            baseMap,
-            replacementTexture: shouldReplace ? replacementTexture : null,
-            replaceTextureScale,
-            replaceTextureScaleX,
-            replaceTextureScaleY,
-            replaceTextureRotationDeg,
-            appliedUvDecals: decalsForMesh,
-          }).then((texture) => {
-            if (texture) {
-              nextMaps[mesh.name as string] = texture;
-            }
-          })
-        );
-      });
-
-      await Promise.all(tasks);
-      if (cancelled) {
-        Object.values(nextMaps).forEach((texture) => texture.dispose());
-        return;
-      }
-
-      bakedPreviewMapsRef.current = nextMaps;
-      setBakedPreviewMaps(nextMaps);
-      disposeQueue.forEach((texture) => texture.dispose());
-    };
-
-    void bake();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    appliedUvDecals,
-    replaceTextureMeshes,
-    replaceTextureRotationDeg,
-    replaceTextureScale,
-    replaceTextureScaleX,
-    replaceTextureScaleY,
-    replacementTexture,
-    scene,
-  ]);
-
-  const preparedScene = useMemo(() => {
-    const includeSet = includeMeshes ? new Set(includeMeshes) : null;
-    const hiddenSet = new Set(hiddenMeshes || []);
-    const replaceSet = new Set(replaceTextureMeshes || []);
-    const textureTintCache = new Map<string, CanvasTexture>();
-    const applyTextureReplacement = (material: unknown): unknown => {
-      if (!replacementTexture) {
-        return material;
-      }
-
-      const replaceOne = (entry: unknown): unknown => {
-        if (!entry || typeof entry !== "object") {
-          return entry;
-        }
-
-        const materialEntry = entry as {
-          clone?: () => unknown;
-        };
-        if (typeof materialEntry.clone !== "function") {
-          return entry;
-        }
-
-        const clonedMaterial = materialEntry.clone() as {
-          map?: unknown;
-          color?: { set?: (value: string) => void };
-          transparent?: boolean;
-          needsUpdate?: boolean;
-        };
-        const textured = replacementTexture.clone();
-        textured.colorSpace = SRGBColorSpace;
-        textured.flipY = false;
-        textured.center.set(0.5, 0.5);
-        textured.rotation = (replaceTextureRotationDeg * Math.PI) / 180;
-        const uniform = Math.max(0.2, replaceTextureScale);
-        const scaleX = Math.max(0.2, replaceTextureScaleX);
-        const scaleY = Math.max(0.2, replaceTextureScaleY);
-        const repeatX = Math.max(0.1, Math.min(8, 1 / (uniform * scaleX)));
-        const repeatY = Math.max(0.1, Math.min(8, 1 / (uniform * scaleY)));
-        textured.repeat.set(repeatX, repeatY);
-        textured.offset.set((1 - repeatX) * 0.5, (1 - repeatY) * 0.5);
-        textured.needsUpdate = true;
-
-        clonedMaterial.map = textured;
-        clonedMaterial.color?.set?.("#ffffff");
-        if ("transparent" in clonedMaterial) {
-          clonedMaterial.transparent = true;
-        }
-        if ("needsUpdate" in clonedMaterial) {
-          clonedMaterial.needsUpdate = true;
-        }
-        return clonedMaterial;
-      };
-
-      if (Array.isArray(material)) {
-        return material.map((entry) => replaceOne(entry));
-      }
-
-      return replaceOne(material);
-    };
-    const applyBakedPreviewMap = (material: unknown, bakedTexture: Texture): unknown => {
-      const applyOne = (entry: unknown): unknown => {
-        if (!entry || typeof entry !== "object") {
-          return entry;
-        }
-
-        const materialEntry = entry as { clone?: () => unknown };
-        if (typeof materialEntry.clone !== "function") {
-          return entry;
-        }
-
-        const clonedMaterial = materialEntry.clone() as {
-          map?: Texture | null;
-          color?: { set?: (value: string) => void };
-          needsUpdate?: boolean;
-        };
-        clonedMaterial.map = bakedTexture;
-        clonedMaterial.color?.set?.("#ffffff");
-        clonedMaterial.needsUpdate = true;
-        return clonedMaterial;
-      };
-
-      if (Array.isArray(material)) {
-        return material.map((entry) => applyOne(entry));
-      }
-
-      return applyOne(material);
-    };
-    const cloneMaterialWithTint = (material: unknown, tint: MeshTintEntry): unknown => {
-      const tintOne = (entry: unknown): unknown => {
-        if (!entry || typeof entry !== "object") {
-          return entry;
-        }
-
-        const materialEntry = entry as {
-          clone?: () => unknown;
-          color?: { set?: (value: string) => void };
-          map?: {
-            image?: { width?: number; height?: number };
-            colorSpace?: unknown;
-            flipY?: boolean;
-            needsUpdate?: boolean;
-            uuid?: string;
-          } | null;
-        };
-
-        if (typeof materialEntry.clone !== "function") {
-          return entry;
-        }
-
-        const clonedMaterial = materialEntry.clone() as {
-          color?: { set?: (value: string) => void };
-          map?: unknown;
-          needsUpdate?: boolean;
-        };
-        if (tint.mode === "flat") {
-          // Full recolor for hair/beard.
-          if ("map" in clonedMaterial) {
-            clonedMaterial.map = null;
-          }
-        } else {
-          const sourceMap = materialEntry.map;
-          const sourceImage = sourceMap?.image;
-          const width = sourceImage?.width || 0;
-          const height = sourceImage?.height || 0;
-
-          if (sourceMap && width > 0 && height > 0) {
-            const cacheKey = `${sourceMap.uuid || "map"}:${tint.mode}:${tint.color}`;
-            let tintedTexture = textureTintCache.get(cacheKey);
-
-            if (!tintedTexture) {
-              const canvas = document.createElement("canvas");
-              canvas.width = width;
-              canvas.height = height;
-              const context = canvas.getContext("2d");
-
-              if (context) {
-                context.drawImage(
-                  sourceMap.image as CanvasImageSource,
-                  0,
-                  0,
-                  width,
-                  height
-                );
-                const imageData = context.getImageData(0, 0, width, height);
-                const data = imageData.data;
-                const sourceData = new Uint8ClampedArray(data);
-                const target = new Color(tint.color);
-                const targetR = Math.round(target.r * 255);
-                const targetG = Math.round(target.g * 255);
-                const targetB = Math.round(target.b * 255);
-
-                for (let index = 0; index < data.length; index += 4) {
-                  const alpha = data[index + 3];
-                  if (alpha < 8) continue;
-
-                  const red = data[index];
-                  const green = data[index + 1];
-                  const blue = data[index + 2];
-                  const pixel = index / 4;
-                  const x = pixel % width;
-                  const y = Math.floor(pixel / width);
-                  const yNorm = y / height;
-                  const xNorm = x / width;
-                  const luminance = (red + green + blue) / 3;
-                  const maxChannel = Math.max(red, green, blue);
-                  const minChannel = Math.min(red, green, blue);
-                  const chroma = maxChannel - minChannel;
-                  const saturation = maxChannel === 0 ? 0 : chroma / maxChannel;
-
-                  let strength = 0;
-
-                  if (tint.mode === "eyebrows") {
-                    const eyebrowBand = yNorm > 0.36 && yNorm < 0.54;
-                    const leftBrowZone = xNorm > 0.24 && xNorm < 0.46;
-                    const rightBrowZone = xNorm > 0.54 && xNorm < 0.76;
-                    const eyebrowZone = eyebrowBand && (leftBrowZone || rightBrowZone);
-
-                    if (!eyebrowZone) {
-                      continue;
-                    }
-
-                    const hasNeighbors =
-                      x > 0 && x < width - 1 && y > 0 && y < height - 1;
-                    if (!hasNeighbors) {
-                      continue;
-                    }
-
-                    const leftIndex = index - 4;
-                    const rightIndex = index + 4;
-                    const topIndex = index - width * 4;
-                    const bottomIndex = index + width * 4;
-
-                    const leftLum =
-                      (sourceData[leftIndex] +
-                        sourceData[leftIndex + 1] +
-                        sourceData[leftIndex + 2]) /
-                      3;
-                    const rightLum =
-                      (sourceData[rightIndex] +
-                        sourceData[rightIndex + 1] +
-                        sourceData[rightIndex + 2]) /
-                      3;
-                    const topLum =
-                      (sourceData[topIndex] +
-                        sourceData[topIndex + 1] +
-                        sourceData[topIndex + 2]) /
-                      3;
-                    const bottomLum =
-                      (sourceData[bottomIndex] +
-                        sourceData[bottomIndex + 1] +
-                        sourceData[bottomIndex + 2]) /
-                      3;
-
-                    const gradient =
-                      Math.abs(leftLum - rightLum) + Math.abs(topLum - bottomLum);
-                    const isDarkStroke = luminance < 176;
-                    const isMostlyNeutral = saturation < 0.48 && chroma < 122;
-                    const hasHairLikeDetail = gradient > 28;
-
-                    if (!isDarkStroke || !isMostlyNeutral || !hasHairLikeDetail) {
-                      continue;
-                    }
-
-                    const darkness = Math.min(1, (200 - luminance) / 200);
-                    const detail = Math.min(1, (gradient - 28) / 72);
-                    strength = 0.3 + darkness * 0.52 + detail * 0.18;
-                  } else if (tint.mode === "lips") {
-                    const lipCenterX = 0.5;
-                    const lipCenterY = 0.6;
-                    const lipRadiusX = 0.14;
-                    const lipRadiusY = 0.075;
-                    const dx = (xNorm - lipCenterX) / lipRadiusX;
-                    const dy = (yNorm - lipCenterY) / lipRadiusY;
-                    const lipEllipse = dx * dx + dy * dy < 1;
-                    const lipZone = yNorm > 0.5 && yNorm < 0.7 && xNorm > 0.32 && xNorm < 0.68;
-                    const lipLike =
-                      lipEllipse &&
-                      lipZone &&
-                      luminance > 86 &&
-                      luminance < 226 &&
-                      saturation < 0.56;
-                    if (!lipLike) {
-                      continue;
-                    }
-
-                    const softness = Math.max(0, 1 - (dx * dx + dy * dy));
-                    strength = 0.24 + softness * 0.46;
-                  } else {
-                    const threshold = 168;
-                    if (luminance > threshold) {
-                      continue;
-                    }
-                    strength = ((threshold - luminance) / threshold) * 0.88;
-                  }
-
-                  data[index] = Math.round(red * (1 - strength) + targetR * strength);
-                  data[index + 1] = Math.round(green * (1 - strength) + targetG * strength);
-                  data[index + 2] = Math.round(blue * (1 - strength) + targetB * strength);
-                }
-
-                context.putImageData(imageData, 0, 0);
-                tintedTexture = new CanvasTexture(canvas);
-                tintedTexture.colorSpace = SRGBColorSpace;
-                tintedTexture.flipY = sourceMap.flipY ?? false;
-                tintedTexture.needsUpdate = true;
-                textureTintCache.set(cacheKey, tintedTexture);
-              }
-            }
-
-            if (tintedTexture) {
-              clonedMaterial.map = tintedTexture;
-            }
-          }
-        }
-        if (tint.mode === "flat") {
-          clonedMaterial.color?.set?.(tint.color);
-        } else {
-          // Keep base skin tone from texture; tint is applied only on selected pixels.
-          clonedMaterial.color?.set?.("#ffffff");
-        }
-        if ("needsUpdate" in clonedMaterial) {
-          clonedMaterial.needsUpdate = true;
-        }
-        return clonedMaterial;
-      };
-
-      if (Array.isArray(material)) {
-        return material.map((entry) => tintOne(entry));
-      }
-
-      return tintOne(material);
-    };
-    const cloned = clone(scene) as Group;
-
-    cloned.traverse((object) => {
-      const mesh = object as {
-        isMesh?: boolean;
-        castShadow?: boolean;
-        receiveShadow?: boolean;
-        visible?: boolean;
-        name?: string;
-        material?: unknown;
-        userData?: Record<string, unknown>;
-      };
-
-      if (!mesh.isMesh) {
-        return;
-      }
-
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.userData = { ...(mesh.userData || {}), avatarSurface: true };
-
-      if (includeSet) {
-        mesh.visible = includeSet.has(mesh.name as MeshSlot);
-      } else if (hiddenSet.size > 0) {
-        mesh.visible = !hiddenSet.has(mesh.name as MeshSlot);
-      }
-
-      const tintEntry = mesh.name ? tintByMesh?.[mesh.name] : null;
-      const bakedPreviewMap = mesh.name ? bakedPreviewMaps[mesh.name] : null;
-      const shouldReplaceTexture =
-        replacementTexture && replaceSet.has(mesh.name as MeshSlot);
-      if (bakedPreviewMap && mesh.material) {
-        mesh.material = applyBakedPreviewMap(mesh.material, bakedPreviewMap);
-      } else if (shouldReplaceTexture && mesh.material) {
-        mesh.material = applyTextureReplacement(mesh.material);
-      }
-      if (tintEntry && mesh.material) {
-        mesh.material = cloneMaterialWithTint(mesh.material, tintEntry);
-      }
-    });
-
-    return cloned;
-  }, [
-    hiddenKey,
-    includeKey,
-    includeMeshes,
-    hiddenMeshes,
-    replaceMeshesKey,
-    replaceTextureMeshes,
-    replacementTexture,
-    replaceTextureRotationDeg,
-    replaceTextureScale,
-    replaceTextureScaleX,
-    replaceTextureScaleY,
-    scene,
-    bakedPreviewMaps,
-    tintByMesh,
-    tintKey,
-  ]);
-  useIdleAnimation(preparedScene, idleAnimationUrl, enableIdleAnimation);
-  return <primitive object={preparedScene} position={POSITION_OFFSET} />;
-}
-
-function AvatarHeadMaskLayer({
-  modelUrl,
-  maskUrl,
-  idleAnimationUrl,
-  tintColor,
-  renderOrder = 20,
-  enableIdleAnimation = true,
-}: {
-  modelUrl: string;
-  maskUrl: string;
-  idleAnimationUrl: string;
-  tintColor?: string;
-  renderOrder?: number;
-  enableIdleAnimation?: boolean;
-}) {
-  const { scene } = useGLTF(modelUrl) as { scene: Group };
-  const maskTexture = useTexture(maskUrl);
-  const derivedAlphaTexture = useMemo(() => {
-    if (!tintColor) {
-      return maskTexture;
-    }
-
-    const sourceImage = maskTexture.image as CanvasImageSource | undefined;
-    const width =
-      sourceImage && "width" in sourceImage
-        ? Number((sourceImage as { width: number }).width) || 0
-        : 0;
-    const height =
-      sourceImage && "height" in sourceImage
-        ? Number((sourceImage as { height: number }).height) || 0
-        : 0;
-
-    if (!sourceImage || width <= 0 || height <= 0) {
-      return maskTexture;
-    }
-
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      return maskTexture;
-    }
-
-    context.drawImage(sourceImage as CanvasImageSource, 0, 0, width, height);
-    const imageData = context.getImageData(0, 0, width, height);
-    const data = imageData.data;
-
-    let luminanceSum = 0;
-    const pixelCount = width * height;
-    for (let index = 0; index < data.length; index += 4) {
-      luminanceSum += (data[index] + data[index + 1] + data[index + 2]) / 3;
-    }
-    const averageLuminance = pixelCount > 0 ? luminanceSum / pixelCount : 255;
-    const invert = averageLuminance > 127;
-
-    for (let index = 0; index < data.length; index += 4) {
-      const luminance = (data[index] + data[index + 1] + data[index + 2]) / 3;
-      const rawAlpha = invert ? 255 - luminance : luminance;
-      const boosted = Math.max(0, Math.min(255, (rawAlpha - 16) * 1.25));
-
-      // Alpha map uses color channels, so keep grayscale in RGB.
-      data[index] = boosted;
-      data[index + 1] = boosted;
-      data[index + 2] = boosted;
-      data[index + 3] = 255;
-    }
-
-    context.putImageData(imageData, 0, 0);
-    const alphaTexture = new CanvasTexture(canvas);
-    alphaTexture.flipY = maskTexture.flipY ?? false;
-    alphaTexture.needsUpdate = true;
-    return alphaTexture;
-  }, [maskTexture, tintColor]);
-
-  useEffect(() => {
-    maskTexture.flipY = false;
-    if (!tintColor) {
-      maskTexture.colorSpace = SRGBColorSpace;
-    }
-    maskTexture.needsUpdate = true;
-  }, [maskTexture, tintColor]);
-
-  const preparedScene = useMemo(() => {
-    const cloned = clone(scene) as Group;
-
-    cloned.traverse((object) => {
-      const mesh = object as {
-        isMesh?: boolean;
-        isSkinnedMesh?: boolean;
-        castShadow?: boolean;
-        receiveShadow?: boolean;
-        visible?: boolean;
-        name?: string;
-        material?: unknown;
-        renderOrder?: number;
-      };
-
-      if (!mesh.isMesh) {
-        return;
-      }
-
-      const isHead = mesh.name === SLOT_NAMES.head;
-      mesh.visible = isHead;
-
-      if (!isHead) {
-        return;
-      }
-
-      mesh.castShadow = false;
-      mesh.receiveShadow = false;
-      mesh.renderOrder = renderOrder;
-
-      const overlayMaterial = new MeshStandardMaterial({
-        map: tintColor ? null : maskTexture,
-        // For non-tinted overlays (face paint), use texture alpha directly.
-        // alphaMap would derive transparency from color channels and hide dark paint.
-        alphaMap: tintColor ? derivedAlphaTexture : null,
-        transparent: true,
-        depthWrite: false,
-        color: tintColor || "#ffffff",
-        roughness: 1,
-        metalness: 0,
-        polygonOffset: true,
-        polygonOffsetFactor: -4,
-        polygonOffsetUnits: -4,
-      });
-
-      overlayMaterial.alphaTest = 0.08;
-      mesh.material = overlayMaterial;
-    });
-
-    return cloned;
-  }, [derivedAlphaTexture, maskTexture, modelUrl, renderOrder, scene, tintColor]);
-  useIdleAnimation(preparedScene, idleAnimationUrl, enableIdleAnimation);
-  return <primitive object={preparedScene} position={POSITION_OFFSET} />;
-}
-
-const getDecalOrientation = (transform: StickerTransform) => {
-  const normalVector = new Vector3(...transform.normal).normalize();
-  const base = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), normalVector);
-  const twist = new Quaternion().setFromAxisAngle(
-    normalVector,
-    (transform.rotationDeg * Math.PI) / 180
-  );
-  return base.multiply(twist);
-};
-
-const getDecalSize = (scale: number) =>
-  new Vector3(scale, scale, Math.max(0.01, scale * 0.12));
-
-function SurfaceSticker({
-  textureUrl,
-  transform,
-  targetMesh,
-}: {
-  textureUrl: string;
-  transform: StickerTransform;
-  targetMesh: Mesh | null;
-}) {
-  const texture = useTexture(textureUrl);
-
-  useEffect(() => {
-    texture.colorSpace = SRGBColorSpace;
-    texture.flipY = false;
-    texture.needsUpdate = true;
-  }, [texture]);
-
-  const geometry = useMemo(() => {
-    if (!targetMesh) {
-      return null;
-    }
-
-    const orientation = new Euler().setFromQuaternion(getDecalOrientation(transform));
-    const decalPosition = new Vector3(...transform.position);
-    const decalSize = getDecalSize(transform.scale);
-
-    return new DecalGeometry(targetMesh, decalPosition, orientation, decalSize);
-  }, [targetMesh, transform]);
-
-  useEffect(() => {
-    return () => {
-      geometry?.dispose();
-    };
-  }, [geometry]);
-
-  if (!geometry) {
-    return null;
-  }
-
-  return (
-    <mesh geometry={geometry} renderOrder={24}>
-      <meshStandardMaterial
-        map={texture}
-        transparent
-        alphaTest={0.02}
-        side={DoubleSide}
-        depthWrite={false}
-        polygonOffset
-        polygonOffsetFactor={-5}
-        polygonOffsetUnits={-5}
-      />
-    </mesh>
-  );
-}
-
-function AutoStickerProjector({
-  enabled,
-  hasTarget,
-  onPick,
-}: {
-  enabled: boolean;
-  hasTarget: boolean;
-  onPick: (payload: {
-    mesh: Mesh;
-    point: Vector3;
-    normal: Vector3;
-    uv: [number, number] | null;
-  }) => void;
-}) {
-  const { scene, camera, raycaster } = useThree();
-  const pickedRef = useRef(false);
-  const centerNdc = useMemo(() => new Vector2(0, 0), []);
-
-  useEffect(() => {
-    pickedRef.current = false;
-  }, [enabled, hasTarget]);
-
-  useFrame(() => {
-    if (!enabled || hasTarget || pickedRef.current) {
-      return;
-    }
-
-    raycaster.setFromCamera(centerNdc, camera);
-    const hits = raycaster
-      .intersectObjects(scene.children, true)
-      .filter((hit) =>
-        Boolean((hit.object as { userData?: Record<string, unknown> }).userData?.avatarSurface)
-      );
-
-    const hit = hits[0];
-    if (!hit) {
-      return;
-    }
-
-    const mesh = hit.object as Mesh;
-    const normal = hit.face
-      ? hit.face.normal.clone().transformDirection(mesh.matrixWorld).normalize()
-      : new Vector3(0, 0, 1);
-    pickedRef.current = true;
-    onPick({
-      mesh,
-      point: hit.point.clone(),
-      normal,
-      uv: hit.uv ? [hit.uv.x, hit.uv.y] : null,
-    });
-  });
-
-  return null;
-}
-
-function PlaceholderAvatar() {
-  return (
-    <group position={[0, -0.15, 0]}>
-      <mesh castShadow receiveShadow position={[0, 0.74, 0]}>
-        <capsuleGeometry args={[0.28, 1.1, 10, 18]} />
-        <meshStandardMaterial color="#8e8e8e" roughness={0.58} metalness={0.05} />
-      </mesh>
-      <mesh castShadow receiveShadow position={[0, 1.66, 0]}>
-        <sphereGeometry args={[0.22, 24, 24]} />
-        <meshStandardMaterial color="#b5b5b5" roughness={0.5} metalness={0.04} />
-      </mesh>
-    </group>
-  );
-}
-
-function SceneLoader() {
-  const { active, progress } = useProgress();
-
-  if (!active) {
-    return null;
-  }
-
-  return (
-    <Html center>
-      <div className="canvas-loader">
-        <div className="canvas-loader__ring" />
-        <span>{Math.round(progress)}%</span>
-      </div>
-    </Html>
-  );
-}
-
-function ClearAssetIcon() {
-  return (
-    <svg viewBox="0 0 64 64" aria-hidden="true">
-      <circle cx="32" cy="32" r="24" fill="none" stroke="currentColor" strokeWidth="5" />
-      <path d="M18 46L46 18" fill="none" stroke="currentColor" strokeWidth="5" />
-    </svg>
-  );
-}
-
-function SettingsGearIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M19.14 12.94a7.2 7.2 0 0 0 .05-.94 7.2 7.2 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.63l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.29 7.29 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.49-.42h-3.84a.5.5 0 0 0-.49.42l-.36 2.54a7.29 7.29 0 0 0-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.7 8.85a.5.5 0 0 0 .12.63l2.03 1.58a7.2 7.2 0 0 0-.05.94 7.2 7.2 0 0 0 .05.94L2.82 14.52a.5.5 0 0 0-.12.63l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.39 1.05.71 1.63.94l.36 2.54a.5.5 0 0 0 .49.42h3.84a.5.5 0 0 0 .49-.42l.36-2.54c.58-.23 1.13-.55 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.63l-2.03-1.58ZM12 15.35A3.35 3.35 0 1 1 12 8.65a3.35 3.35 0 0 1 0 6.7Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function SceneBridge({
-  onReady,
-}: {
-  onReady: (payload: { renderer: WebGLRenderer; scene: Scene; camera: Camera }) => void;
-}) {
-  const { gl, scene, camera } = useThree();
-
-  useEffect(() => {
-    onReady({ renderer: gl, scene, camera });
-  }, [camera, gl, onReady, scene]);
-
-  return null;
-}
-
-function PresetPreviewImage({ src, alt }: { src: string; alt: string }) {
-  const [normalizedSrc, setNormalizedSrc] = useState(src);
-
-  useEffect(() => {
-    let cancelled = false;
-    const image = new Image();
-    image.decoding = "async";
-    image.src = src;
-
-    image.onload = () => {
-      if (cancelled) return;
-
-      const width = image.naturalWidth || image.width;
-      const height = image.naturalHeight || image.height;
-      if (!width || !height) {
-        setNormalizedSrc(src);
-        return;
-      }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        setNormalizedSrc(src);
-        return;
-      }
-
-      context.drawImage(image, 0, 0, width, height);
-      const imageData = context.getImageData(0, 0, width, height);
-      const data = imageData.data;
-      const pixelCount = width * height;
-      const visited = new Uint8Array(pixelCount);
-      const queue = new Int32Array(pixelCount);
-      let head = 0;
-      let tail = 0;
-
-      const getOffset = (x: number, y: number) => (y * width + x) * 4;
-
-      const corners = [
-        getOffset(0, 0),
-        getOffset(width - 1, 0),
-        getOffset(0, height - 1),
-        getOffset(width - 1, height - 1),
-      ];
-
-      const bgR = Math.round(
-        corners.reduce((sum, offset) => sum + data[offset], 0) / corners.length
-      );
-      const bgG = Math.round(
-        corners.reduce((sum, offset) => sum + data[offset + 1], 0) / corners.length
-      );
-      const bgB = Math.round(
-        corners.reduce((sum, offset) => sum + data[offset + 2], 0) / corners.length
-      );
-      const toHsv = (red: number, green: number, blue: number) => {
-        const r = red / 255;
-        const g = green / 255;
-        const b = blue / 255;
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        const delta = max - min;
-
-        let hue = 0;
-        if (delta > 0) {
-          if (max === r) {
-            hue = ((g - b) / delta) % 6;
-          } else if (max === g) {
-            hue = (b - r) / delta + 2;
-          } else {
-            hue = (r - g) / delta + 4;
-          }
-          hue /= 6;
-          if (hue < 0) hue += 1;
-        }
-
-        const saturation = max === 0 ? 0 : delta / max;
-        const value = max;
-        return { hue, saturation, value };
-      };
-
-      const hueDistance = (left: number, right: number) => {
-        const diff = Math.abs(left - right);
-        return Math.min(diff, 1 - diff);
-      };
-
-      const bgHsv = toHsv(bgR, bgG, bgB);
-      const isDarkColorBackground = bgHsv.value < 0.62 && bgHsv.saturation > 0.14;
-      if (!isDarkColorBackground) {
-        setNormalizedSrc(src);
-        return;
-      }
-
-      const distanceToBg = (offset: number) => {
-        const dr = data[offset] - bgR;
-        const dg = data[offset + 1] - bgG;
-        const db = data[offset + 2] - bgB;
-        return Math.sqrt(dr * dr + dg * dg + db * db);
-      };
-
-      const threshold = 38;
-      const isBackgroundLike = (offset: number) => {
-        const distance = distanceToBg(offset);
-        if (distance > threshold) {
-          return false;
-        }
-
-        const hsv = toHsv(data[offset], data[offset + 1], data[offset + 2]);
-        const hDiff = hueDistance(hsv.hue, bgHsv.hue);
-        const sDiff = Math.abs(hsv.saturation - bgHsv.saturation);
-        const vDiff = Math.abs(hsv.value - bgHsv.value);
-
-        return hDiff < 0.08 && sDiff < 0.24 && vDiff < 0.24;
-      };
-
-      const push = (x: number, y: number) => {
-        if (x < 0 || x >= width || y < 0 || y >= height) return;
-        const index = y * width + x;
-        if (visited[index]) return;
-
-        const offset = index * 4;
-        if (!isBackgroundLike(offset)) return;
-
-        visited[index] = 1;
-        queue[tail] = index;
-        tail += 1;
-      };
-
-      for (let x = 0; x < width; x += 1) {
-        push(x, 0);
-        push(x, height - 1);
-      }
-      for (let y = 0; y < height; y += 1) {
-        push(0, y);
-        push(width - 1, y);
-      }
-
-      while (head < tail) {
-        const index = queue[head];
-        head += 1;
-        const x = index % width;
-        const y = Math.floor(index / width);
-
-        push(x - 1, y);
-        push(x + 1, y);
-        push(x, y - 1);
-        push(x, y + 1);
-      }
-
-      for (let index = 0; index < pixelCount; index += 1) {
-        if (!visited[index]) continue;
-        const offset = index * 4;
-        data[offset] = 255;
-        data[offset + 1] = 255;
-        data[offset + 2] = 255;
-      }
-
-      context.putImageData(imageData, 0, 0);
-      setNormalizedSrc(canvas.toDataURL("image/png"));
-    };
-
-    image.onerror = () => {
-      if (!cancelled) {
-        setNormalizedSrc(src);
-      }
-    };
-
-    return () => {
-      cancelled = true;
-    };
-  }, [src]);
-
-  return <img src={normalizedSrc} alt={alt} loading="lazy" />;
-}
-
-function ExportPreviewModal({
-  copy,
-  previewUrl,
-  downloadUrl,
-  fileName,
-  onClose,
-}: {
-  copy: (typeof UI_TEXT)[UiLocale];
-  previewUrl: string | null;
-  downloadUrl: string | null;
-  fileName: string;
-  onClose: () => void;
-}) {
-  return (
-    <div className="export-modal-backdrop" onClick={onClose}>
-      <div
-        className="export-modal"
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-      >
-        <button className="export-modal__close" type="button" onClick={onClose}>
-          ×
-        </button>
-        <div className="export-modal__preview">
-          {previewUrl ? <img src={previewUrl} alt={copy.exportPreviewTitle} /> : null}
-        </div>
-        <div className="export-modal__panel">
-          <div className="export-modal__title">{copy.exportPreviewTitle}</div>
-          <div className="export-modal__hint">{copy.exportPreviewHint}</div>
-          {downloadUrl ? (
-            <>
-              <div className="export-modal__label">{copy.exportLinkLabel}</div>
-              <div className="export-modal__link">{fileName}</div>
-              <a className="export-modal__download" href={downloadUrl} download={fileName}>
-                {copy.exportDownload}
-              </a>
-            </>
-          ) : (
-            <div className="export-modal__busy">{copy.exportBusy}</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const createAnonymousUser = async (appName: string) => {
-  const response = await fetch(`${RPM_API_BASE}/v1/users`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      data: {
-        appName,
-        requestToken: true,
-      },
-    }),
-  });
-  const payload = await response.json();
-  const token = payload?.data?.token as string | undefined;
-  const userId = payload?.data?.id as string | undefined;
-  if (!response.ok || !token || !userId) {
-    throw new Error("Failed to create anonymous RPM user.");
-  }
-  return { token, userId };
-};
-
-const createAvatarFromTemplate = async ({
-  token,
-  userId,
-  templateId,
-  appName,
-}: {
-  token: string;
-  userId: string;
-  templateId: string;
-  appName: string;
-}) => {
-  const response = await fetch(`${RPM_API_BASE}/v2/avatars/templates/${templateId}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      data: {
-        partner: appName,
-        bodyType: "fullbody",
-        userId,
-      },
-    }),
-  });
-  const payload = await response.json();
-  if (!response.ok || !payload?.data?.id) {
-    throw new Error("Failed to create avatar from template.");
-  }
-  return payload.data as { id: string; assets: Record<string, string> };
-};
-
-const getAvatarExportUrl = (avatarId: string) => {
-  const url = new URL(`${RPM_API_BASE}/v2/avatars/${avatarId}`);
-  url.searchParams.set("responseType", "glb");
-  url.searchParams.set("textureAtlas", "none");
-  url.searchParams.set("textureFormat", "png");
-  url.searchParams.set("lod", "0");
-  url.searchParams.set("textureQuality", "medium");
-  return url.toString();
-};
-
-const applyAssetToAvatarAssets = ({
-  type,
-  assetId,
-  baseAssets,
-}: {
-  type: SupportedType;
-  assetId: string;
-  baseAssets: Record<string, string>;
-}) => {
-  const next = { ...baseAssets };
-  const mappedKey = TYPE_TO_AVATAR_ASSET_KEY[type];
-  if (!mappedKey) {
-    return next;
-  }
-
-  if (type === "top") {
-    next.top = assetId;
-    next.shirt = "";
-    next.outfit = "";
-    return next;
-  }
-
-  if (type === "bottom") {
-    next.bottom = assetId;
-    next.outfit = "";
-    return next;
-  }
-
-  if (type === "footwear") {
-    next.footwear = assetId;
-    next.outfit = "";
-    return next;
-  }
-
-  if (type === "outfit") {
-    next.outfit = assetId;
-    next.top = "";
-    next.shirt = "";
-    next.bottom = "";
-    next.footwear = "";
-    return next;
-  }
-
-  next[mappedKey] = assetId;
-  return next;
-};
-
-const patchAvatarGlb = async ({
-  token,
-  avatarId,
-  assets,
-}: {
-  token: string;
-  avatarId: string;
-  assets: Record<string, string>;
-}) => {
-  const response = await fetch(getAvatarExportUrl(avatarId), {
-    method: "PATCH",
-    headers: {
-      "content-type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ data: { assets } }),
-  });
-  if (!response.ok) {
-    throw new Error(`RPM export failed: ${response.status}`);
-  }
-  return response.blob();
-};
-
-type GlbJson = {
-  asset: { version: string };
-  buffers?: Array<{ byteLength: number }>;
-  bufferViews?: Array<{ buffer: number; byteOffset?: number; byteLength: number }>;
-  accessors?: Array<{ bufferView?: number }>;
-  images?: Array<{ bufferView?: number; mimeType?: string; uri?: string }>;
-  textures?: Array<{
-    source?: number;
-    sampler?: number;
-    name?: string;
-    extensions?: Record<string, unknown>;
-    extras?: Record<string, unknown>;
-  }>;
-  materials?: Array<{
-    pbrMetallicRoughness?: {
-      baseColorTexture?: {
-        index: number;
-        texCoord?: number;
-        extensions?: {
-          KHR_texture_transform?: {
-            offset?: [number, number];
-            scale?: [number, number];
-            rotation?: number;
-            texCoord?: number;
-          };
-        };
-      };
-    };
-  }>;
-  meshes?: Array<{ primitives?: Array<{ material?: number }> }>;
-  nodes?: Array<{ name?: string; mesh?: number }>;
-};
-
-const readFileAsImage = (blob: Blob) =>
-  new Promise<HTMLImageElement>((resolve, reject) => {
-    const url = URL.createObjectURL(blob);
-    const image = new Image();
-    image.decoding = "async";
-    image.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(image);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Failed to decode image."));
-    };
-    image.src = url;
-  });
-
-const dataUrlToUint8Array = (dataUrl: string) => {
-  const [, encoded = ""] = dataUrl.split(",", 2);
-  const binary = atob(encoded);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-};
-
-const padTo4 = (value: number) => (value + 3) & ~3;
-
-const getMimeFromImageDef = (image: { mimeType?: string }) =>
-  image.mimeType === "image/jpeg" ? "image/jpeg" : "image/png";
-
-const encodeCanvas = (canvas: HTMLCanvasElement, mimeType: string) => {
-  const dataUrl = canvas.toDataURL(mimeType === "image/jpeg" ? "image/jpeg" : "image/png");
-  return dataUrlToUint8Array(dataUrl);
-};
-
-const parseGlb = (buffer: ArrayBuffer) => {
-  const view = new DataView(buffer);
-  if (view.getUint32(0, true) !== 0x46546c67) {
-    throw new Error("Invalid GLB header.");
-  }
-
-  let offset = 12;
-  let jsonText = "";
-  let binChunk = new Uint8Array();
-
-  while (offset < buffer.byteLength) {
-    const chunkLength = view.getUint32(offset, true);
-    offset += 4;
-    const chunkType = view.getUint32(offset, true);
-    offset += 4;
-    const chunkData = buffer.slice(offset, offset + chunkLength);
-    offset += chunkLength;
-
-    if (chunkType === 0x4e4f534a) {
-      jsonText = new TextDecoder().decode(chunkData);
-    } else if (chunkType === 0x004e4942) {
-      binChunk = new Uint8Array(chunkData);
-    }
-  }
-
-  if (!jsonText) {
-    throw new Error("GLB is missing JSON chunk.");
-  }
-
-  return {
-    json: JSON.parse(jsonText.trim()) as GlbJson,
-    binChunk,
-  };
-};
-
-const collectImageIndicesForMeshes = (json: GlbJson, meshNames: readonly string[]) => {
-  const wantedNames = new Set(meshNames);
-  const imageIndices = new Set<number>();
-
-  for (const node of json.nodes || []) {
-    if (!node.name || node.mesh == null || !wantedNames.has(node.name)) {
-      continue;
-    }
-
-    const mesh = json.meshes?.[node.mesh];
-    for (const primitive of mesh?.primitives || []) {
-      const materialIndex = primitive.material;
-      if (materialIndex == null) continue;
-      const textureIndex =
-        json.materials?.[materialIndex]?.pbrMetallicRoughness?.baseColorTexture?.index;
-      if (textureIndex == null) continue;
-      const imageIndex = json.textures?.[textureIndex]?.source;
-      if (imageIndex == null) continue;
-      imageIndices.add(imageIndex);
-    }
-  }
-
-  return Array.from(imageIndices);
-};
-
-const collectPrimitiveTargetsForMeshes = (json: GlbJson, meshNames: readonly string[]) => {
-  const wantedNames = new Set(meshNames);
-  const primitiveTargets: Array<{
-    meshIndex: number;
-    primitiveIndex: number;
-    materialIndex: number;
-  }> = [];
-
-  for (const node of json.nodes || []) {
-    if (!node.name || node.mesh == null || !wantedNames.has(node.name)) {
-      continue;
-    }
-
-    const mesh = json.meshes?.[node.mesh];
-    for (const [primitiveIndex, primitive] of (mesh?.primitives || []).entries()) {
-      if (primitive.material != null) {
-        primitiveTargets.push({
-          meshIndex: node.mesh,
-          primitiveIndex,
-          materialIndex: primitive.material,
-        });
-      }
-    }
-  }
-
-  return primitiveTargets;
-};
-
-const drawReplacementPattern = async ({
-  canvas,
-  textureUrl,
-  scale,
-  scaleX,
-  scaleY,
-  rotationDeg,
-}: {
-  canvas: HTMLCanvasElement;
-  textureUrl: string;
-  scale: number;
-  scaleX: number;
-  scaleY: number;
-  rotationDeg: number;
-}) => {
-  const image = await readFileAsImage(await fetch(textureUrl).then((response) => response.blob()));
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("Canvas 2D context is unavailable.");
-  }
-
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  const uniform = Math.max(0.2, scale);
-  const nextScaleX = Math.max(0.2, scaleX);
-  const nextScaleY = Math.max(0.2, scaleY);
-  const repeatX = Math.max(0.1, Math.min(8, 1 / (uniform * nextScaleX)));
-  const repeatY = Math.max(0.1, Math.min(8, 1 / (uniform * nextScaleY)));
-  const uvTransformTexture = new Texture();
-  uvTransformTexture.wrapS = ClampToEdgeWrapping;
-  uvTransformTexture.wrapT = ClampToEdgeWrapping;
-  uvTransformTexture.flipY = false;
-  uvTransformTexture.center.set(0.5, 0.5);
-  uvTransformTexture.rotation = (rotationDeg * Math.PI) / 180;
-  uvTransformTexture.repeat.set(repeatX, repeatY);
-  uvTransformTexture.offset.set((1 - repeatX) * 0.5, (1 - repeatY) * 0.5);
-  uvTransformTexture.updateMatrix();
-  const uv = new Vector2();
-
-  const sourceCanvas = document.createElement("canvas");
-  sourceCanvas.width = image.naturalWidth || image.width;
-  sourceCanvas.height = image.naturalHeight || image.height;
-  const sourceContext = sourceCanvas.getContext("2d");
-  if (!sourceContext) {
-    throw new Error("Source canvas 2D context is unavailable.");
-  }
-  sourceContext.drawImage(image, 0, 0, sourceCanvas.width, sourceCanvas.height);
-
-  const sourcePixels = sourceContext.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-  const output = context.createImageData(canvas.width, canvas.height);
-
-  for (let y = 0; y < canvas.height; y += 1) {
-    const v = (y + 0.5) / canvas.height;
-
-    for (let x = 0; x < canvas.width; x += 1) {
-      const u = (x + 0.5) / canvas.width;
-      uv.set(u, v);
-      uvTransformTexture.transformUv(uv);
-
-      const clampedU = Math.max(0, Math.min(1, uv.x));
-      const clampedV = Math.max(0, Math.min(1, uv.y));
-      const sampleX = Math.max(
-        0,
-        Math.min(sourceCanvas.width - 1, Math.round(clampedU * (sourceCanvas.width - 1)))
-      );
-      const sampleY = Math.max(
-        0,
-        Math.min(sourceCanvas.height - 1, Math.round(clampedV * (sourceCanvas.height - 1)))
-      );
-
-      const sourceIndex = (sampleY * sourceCanvas.width + sampleX) * 4;
-      const targetIndex = (y * canvas.width + x) * 4;
-      output.data[targetIndex] = sourcePixels.data[sourceIndex];
-      output.data[targetIndex + 1] = sourcePixels.data[sourceIndex + 1];
-      output.data[targetIndex + 2] = sourcePixels.data[sourceIndex + 2];
-      output.data[targetIndex + 3] = sourcePixels.data[sourceIndex + 3];
-    }
-  }
-
-  context.putImageData(output, 0, 0);
-};
-
-const drawProjectedDecalOverlay = async ({
-  canvas,
-  decalUrl,
-  targetMesh,
-  transform,
-}: {
-  canvas: HTMLCanvasElement;
-  decalUrl: string;
-  targetMesh: Mesh;
-  transform: StickerTransform;
-}) => {
-  const geometry = targetMesh.geometry as {
-    attributes?: Record<string, { count: number; getX: (index: number) => number; getY: (index: number) => number; getZ?: (index: number) => number }>;
-    index?: { count: number; getX: (index: number) => number };
-  };
-  const positionAttribute = geometry.attributes?.position;
-  const uvAttribute = geometry.attributes?.uv;
-  if (!positionAttribute || !uvAttribute) {
-    return;
-  }
-
-  const decalImage = await readFileAsImage(await fetch(decalUrl).then((response) => response.blob()));
-  const sourceCanvas = document.createElement("canvas");
-  sourceCanvas.width = decalImage.naturalWidth || decalImage.width;
-  sourceCanvas.height = decalImage.naturalHeight || decalImage.height;
-  const sourceContext = sourceCanvas.getContext("2d");
-  const context = canvas.getContext("2d");
-  if (!sourceContext || !context) {
-    throw new Error("Canvas 2D context is unavailable.");
-  }
-  sourceContext.drawImage(decalImage, 0, 0, sourceCanvas.width, sourceCanvas.height);
-
-  const sampleMaxSize = 256;
-  const sampleScale = Math.min(
-    1,
-    sampleMaxSize / Math.max(sourceCanvas.width, sourceCanvas.height, 1)
-  );
-  const sampleCanvas = document.createElement("canvas");
-  sampleCanvas.width = Math.max(1, Math.round(sourceCanvas.width * sampleScale));
-  sampleCanvas.height = Math.max(1, Math.round(sourceCanvas.height * sampleScale));
-  const sampleContext = sampleCanvas.getContext("2d");
-  if (!sampleContext) {
-    throw new Error("Canvas 2D context is unavailable.");
-  }
-  sampleContext.drawImage(sourceCanvas, 0, 0, sampleCanvas.width, sampleCanvas.height);
-
-  const output = context.getImageData(0, 0, canvas.width, canvas.height);
-  const sourcePixels = sampleContext.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
-  const decalPosition = new Vector3(...transform.position);
-  const orientation = getDecalOrientation(transform);
-  const decalSize = getDecalSize(transform.scale);
-  const halfWidth = Math.max(0.0001, decalSize.x * 0.5);
-  const halfHeight = Math.max(0.0001, decalSize.y * 0.5);
-  const halfDepth = Math.max(0.0001, decalSize.z * 0.5);
-
-  targetMesh.updateWorldMatrix(true, false);
-
-  const raycaster = new Raycaster();
-  const rayOrigin = new Vector3();
-  const rayDirection = new Vector3(0, 0, -1).applyQuaternion(orientation).normalize();
-  const localSample = new Vector3();
-
-  for (let pixelY = 0; pixelY < sampleCanvas.height; pixelY += 1) {
-    for (let pixelX = 0; pixelX < sampleCanvas.width; pixelX += 1) {
-      const sourceIndex = (pixelY * sampleCanvas.width + pixelX) * 4;
-      const alpha = sourcePixels[sourceIndex + 3] / 255;
-      if (alpha <= 0) {
-        continue;
-      }
-
-      const decalU = (pixelX + 0.5) / sampleCanvas.width;
-      const decalV = 1 - (pixelY + 0.5) / sampleCanvas.height;
-
-      localSample.set(
-        (decalU - 0.5) * decalSize.x,
-        (decalV - 0.5) * decalSize.y,
-        halfDepth
-      );
-      rayOrigin.copy(localSample).applyQuaternion(orientation).add(decalPosition);
-
-      raycaster.set(rayOrigin, rayDirection);
-      const hit = raycaster.intersectObject(targetMesh, false)[0];
-      const uv = hit?.uv;
-      if (!uv) {
-        continue;
-      }
-
-      const targetX = Math.max(
-        0,
-        Math.min(canvas.width - 1, Math.round(uv.x * (canvas.width - 1)))
-      );
-      const targetY = Math.max(
-        0,
-        Math.min(canvas.height - 1, Math.round((1 - uv.y) * (canvas.height - 1)))
-      );
-
-      const targetIndex = (targetY * canvas.width + targetX) * 4;
-      const inverseAlpha = 1 - alpha;
-      output.data[targetIndex] = Math.round(
-        sourcePixels[sourceIndex] * alpha + output.data[targetIndex] * inverseAlpha
-      );
-      output.data[targetIndex + 1] = Math.round(
-        sourcePixels[sourceIndex + 1] * alpha + output.data[targetIndex + 1] * inverseAlpha
-      );
-      output.data[targetIndex + 2] = Math.round(
-        sourcePixels[sourceIndex + 2] * alpha + output.data[targetIndex + 2] * inverseAlpha
-      );
-      output.data[targetIndex + 3] = Math.round(
-        (alpha + (output.data[targetIndex + 3] / 255) * inverseAlpha) * 255
-      );
-    }
-  }
-
-  context.putImageData(output, 0, 0);
-};
-
-const extractImageBytes = ({
-  json,
-  binChunk,
-  imageIndex,
-}: {
-  json: GlbJson;
-  binChunk: Uint8Array;
-  imageIndex: number;
-}) => {
-  const imageDef = json.images?.[imageIndex];
-  if (!imageDef || imageDef.bufferView == null) {
-    throw new Error(`Image ${imageIndex} is not embedded in GLB binary.`);
-  }
-
-  const bufferView = json.bufferViews?.[imageDef.bufferView];
-  if (!bufferView) {
-    throw new Error(`Buffer view ${imageDef.bufferView} is missing for image ${imageIndex}.`);
-  }
-
-  const byteOffset = bufferView.byteOffset || 0;
-  const bytes = binChunk.slice(byteOffset, byteOffset + bufferView.byteLength);
-  return {
-    imageDef,
-    bytes,
-  };
-};
-
-const rebuildGlbWithModifiedImages = async ({
-  sourceBlob,
-  targetPrimitiveTargets,
-  replacementTextureUrl,
-  replaceTextureMeshes,
-  replaceTextureScale,
-  replaceTextureScaleX,
-  replaceTextureScaleY,
-  replaceTextureRotationDeg,
-  appliedUvDecals,
-}: {
-  sourceBlob: Blob;
-  targetPrimitiveTargets: Array<{
-    meshIndex: number;
-    primitiveIndex: number;
-    materialIndex: number;
-  }>;
-  replacementTextureUrl: string | null;
-  replaceTextureMeshes: readonly MeshSlot[];
-  replaceTextureScale: number;
-  replaceTextureScaleX: number;
-  replaceTextureScaleY: number;
-  replaceTextureRotationDeg: number;
-  appliedUvDecals: readonly AppliedUvDecal[];
-}) => {
-  const buffer = await sourceBlob.arrayBuffer();
-  const { json, binChunk } = parseGlb(buffer);
-  if (targetPrimitiveTargets.length === 0) {
-    return sourceBlob;
-  }
-
-  const bufferViews = (json.bufferViews || []).map((entry) => ({ ...entry }));
-  const images = (json.images || []).map((entry) => ({ ...entry }));
-  const textures = (json.textures || []).map((entry) => ({ ...entry }));
-  const binaryChunks: Uint8Array[] = [];
-
-  for (const bufferView of bufferViews) {
-    const byteOffset = bufferView.byteOffset || 0;
-    const sourceBytes = binChunk.slice(byteOffset, byteOffset + bufferView.byteLength);
-    const padded = new Uint8Array(padTo4(sourceBytes.length));
-    padded.set(sourceBytes);
-    binaryChunks.push(padded);
-  }
-
-  const materials = (json.materials || []).map((entry) => ({
-    ...entry,
-    pbrMetallicRoughness: entry.pbrMetallicRoughness
-      ? {
-          ...entry.pbrMetallicRoughness,
-          baseColorTexture: entry.pbrMetallicRoughness.baseColorTexture
-            ? {
-                ...entry.pbrMetallicRoughness.baseColorTexture,
-                extensions: entry.pbrMetallicRoughness.baseColorTexture.extensions
-                  ? {
-                      ...entry.pbrMetallicRoughness.baseColorTexture.extensions,
-                      KHR_texture_transform:
-                        entry.pbrMetallicRoughness.baseColorTexture.extensions
-                          .KHR_texture_transform
-                          ? {
-                              ...entry.pbrMetallicRoughness.baseColorTexture.extensions
-                                  .KHR_texture_transform,
-                            }
-                          : undefined,
-                    }
-                  : undefined,
-              }
-            : undefined,
-        }
-      : undefined,
-  }));
-  const clonedMaterialIndexByTarget = new Map<string, number>();
-  const appliedUvDecalsByMaterialIndex = new Map<number, AppliedUvDecal[]>();
-  const shouldReplaceByMaterialIndex = new Map<number, boolean>();
-  const replaceMeshSet = new Set(replaceTextureMeshes);
-
-  for (const target of targetPrimitiveTargets) {
-    const targetKey = `${target.meshIndex}:${target.primitiveIndex}:${target.materialIndex}`;
-    let materialIndex = clonedMaterialIndexByTarget.get(targetKey);
-    if (materialIndex == null) {
-      const originalMaterial = materials[target.materialIndex];
-      if (!originalMaterial) {
-        continue;
-      }
-
-      materialIndex = materials.length;
-      materials.push({
-        ...originalMaterial,
-        pbrMetallicRoughness: originalMaterial.pbrMetallicRoughness
-          ? {
-              ...originalMaterial.pbrMetallicRoughness,
-              baseColorTexture: originalMaterial.pbrMetallicRoughness.baseColorTexture
-                ? {
-                    ...originalMaterial.pbrMetallicRoughness.baseColorTexture,
-                    extensions: originalMaterial.pbrMetallicRoughness.baseColorTexture.extensions
-                      ? {
-                          ...originalMaterial.pbrMetallicRoughness.baseColorTexture.extensions,
-                          KHR_texture_transform:
-                            originalMaterial.pbrMetallicRoughness.baseColorTexture.extensions
-                              .KHR_texture_transform
-                              ? {
-                                  ...originalMaterial.pbrMetallicRoughness.baseColorTexture
-                                      .extensions.KHR_texture_transform,
-                                }
-                              : undefined,
-                        }
-                      : undefined,
-                  }
-                : undefined,
-            }
-          : undefined,
-      });
-      clonedMaterialIndexByTarget.set(targetKey, materialIndex);
-
-      const meshDef = json.meshes?.[target.meshIndex] as
-        | {
-            name?: string;
-            primitives?: Array<{ material?: number }>;
-          }
-        | undefined;
-      const meshName = meshDef?.name || "";
-      appliedUvDecalsByMaterialIndex.set(
-        materialIndex,
-        getAppliedUvDecalsForMesh(appliedUvDecals, meshName)
-      );
-      shouldReplaceByMaterialIndex.set(materialIndex, replaceMeshSet.has(meshName as MeshSlot));
-    }
-
-    const primitive = json.meshes?.[target.meshIndex]?.primitives?.[target.primitiveIndex];
-    if (primitive) {
-      primitive.material = materialIndex;
-    }
-  }
-
-  for (const materialIndex of clonedMaterialIndexByTarget.values()) {
-    const textureInfo = materials[materialIndex]?.pbrMetallicRoughness?.baseColorTexture;
-    const textureIndex = textureInfo?.index;
-    const imageIndex = textureIndex != null ? textures[textureIndex]?.source : undefined;
-    if (!textureInfo || textureIndex == null || imageIndex == null) {
-      continue;
-    }
-
-    const { imageDef, bytes } = extractImageBytes({ json, binChunk, imageIndex });
-    const originalBlob = new Blob([bytes], { type: getMimeFromImageDef(imageDef) });
-    const originalImage = await readFileAsImage(originalBlob);
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, originalImage.naturalWidth || originalImage.width);
-    canvas.height = Math.max(1, originalImage.naturalHeight || originalImage.height);
-
-    const shouldReplaceTexture = Boolean(
-      replacementTextureUrl && shouldReplaceByMaterialIndex.get(materialIndex)
-    );
-    if (shouldReplaceTexture) {
-      const replacementTextureUrlValue = replacementTextureUrl || "";
-      await drawReplacementPattern({
-        canvas,
-        textureUrl: replacementTextureUrlValue,
-        scale: replaceTextureScale,
-        scaleX: replaceTextureScaleX,
-        scaleY: replaceTextureScaleY,
-        rotationDeg: replaceTextureRotationDeg,
-      });
-    } else {
-      const context = canvas.getContext("2d");
-      if (context) {
-        context.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
-      }
-    }
-
-    for (const appliedUvDecal of appliedUvDecalsByMaterialIndex.get(materialIndex) || []) {
-      const decalImage = await readFileAsImage(
-        await fetch(appliedUvDecal.textureUrl).then((response) => response.blob())
-      );
-      drawUvDecalOverlayToCanvas({
-        canvas,
-        decalImage,
-        uv: appliedUvDecal.uv,
-        scale: appliedUvDecal.scale,
-        rotationDeg: appliedUvDecal.rotationDeg,
-      });
-    }
-
-    const encodedBytes = encodeCanvas(canvas, getMimeFromImageDef(imageDef));
-    const padded = new Uint8Array(padTo4(encodedBytes.length));
-    padded.set(encodedBytes);
-
-    const newBufferViewIndex = bufferViews.length;
-    bufferViews.push({
-      buffer: 0,
-      byteLength: encodedBytes.length,
-    });
-    binaryChunks.push(padded);
-
-    const newImageIndex = images.length;
-    images.push({
-      mimeType: imageDef.mimeType,
-      bufferView: newBufferViewIndex,
-    });
-
-    const newTextureIndex = textures.length;
-    const originalTexture = textures[textureIndex] || {};
-    textures.push({
-      ...originalTexture,
-      source: newImageIndex,
-    });
-
-    textureInfo.index = newTextureIndex;
-    textureInfo.texCoord = 0;
-    if (textureInfo.extensions?.KHR_texture_transform) {
-      textureInfo.extensions.KHR_texture_transform = {
-        offset: [0, 0],
-        scale: [1, 1],
-        rotation: 0,
-        texCoord: 0,
-      };
-    }
-  }
-
-  const nextChunks: Uint8Array[] = [];
-  let nextOffset = 0;
-
-  for (let index = 0; index < bufferViews.length; index += 1) {
-    const bufferView = bufferViews[index];
-    const sourceBytes = binaryChunks[index] || new Uint8Array();
-    const padded = new Uint8Array(padTo4(sourceBytes.length));
-    padded.set(sourceBytes);
-    bufferView.byteOffset = nextOffset;
-    bufferView.byteLength = sourceBytes.length;
-    nextChunks.push(padded);
-    nextOffset += padded.length;
-  }
-
-  if (!json.buffers?.length) {
-    json.buffers = [{ byteLength: nextOffset }];
-  } else {
-    json.buffers[0].byteLength = nextOffset;
-  }
-  json.materials = materials;
-  json.bufferViews = bufferViews;
-  json.images = images;
-  json.textures = textures;
-
-  const binData = new Uint8Array(nextOffset);
-  let cursor = 0;
-  for (const chunk of nextChunks) {
-    binData.set(chunk, cursor);
-    cursor += chunk.length;
-  }
-
-  const jsonBytes = new TextEncoder().encode(JSON.stringify(json));
-  const paddedJson = new Uint8Array(padTo4(jsonBytes.length));
-  paddedJson.set(jsonBytes);
-  for (let index = jsonBytes.length; index < paddedJson.length; index += 1) {
-    paddedJson[index] = 0x20;
-  }
-
-  const totalLength = 12 + 8 + paddedJson.length + 8 + binData.length;
-  const glb = new Uint8Array(totalLength);
-  const view = new DataView(glb.buffer);
-  view.setUint32(0, 0x46546c67, true);
-  view.setUint32(4, 2, true);
-  view.setUint32(8, totalLength, true);
-  view.setUint32(12, paddedJson.length, true);
-  view.setUint32(16, 0x4e4f534a, true);
-  glb.set(paddedJson, 20);
-  const binHeaderOffset = 20 + paddedJson.length;
-  view.setUint32(binHeaderOffset, binData.length, true);
-  view.setUint32(binHeaderOffset + 4, 0x004e4942, true);
-  glb.set(binData, binHeaderOffset + 8);
-
-  return new Blob([glb], { type: "model/gltf-binary" });
-};
-
-const postProcessExportedAvatarBlob = async ({
-  sourceBlob,
-  replaceTextureUrl,
-  replaceTextureMeshes,
-  replaceTextureScale,
-  replaceTextureScaleX,
-  replaceTextureScaleY,
-  replaceTextureRotationDeg,
-  appliedUvDecals,
-}: {
-  sourceBlob: Blob;
-  replaceTextureUrl: string | null;
-  replaceTextureMeshes: readonly MeshSlot[];
-  replaceTextureScale: number;
-  replaceTextureScaleX: number;
-  replaceTextureScaleY: number;
-  replaceTextureRotationDeg: number;
-  appliedUvDecals: readonly AppliedUvDecal[];
-}) => {
-  const needsTexture = Boolean(replaceTextureUrl && replaceTextureMeshes.length > 0);
-  const needsDecal = appliedUvDecals.length > 0;
-  if (!needsTexture && !needsDecal) {
-    return sourceBlob;
-  }
-
-  const buffer = await sourceBlob.arrayBuffer();
-  const { json } = parseGlb(buffer);
-  const replacementPrimitiveTargets = needsTexture
-    ? collectPrimitiveTargetsForMeshes(json, replaceTextureMeshes)
-    : [];
-  const decalMeshNames = Array.from(new Set(appliedUvDecals.map((entry) => entry.meshName)));
-  const decalPrimitiveTargets = needsDecal
-    ? collectPrimitiveTargetsForMeshes(json, decalMeshNames)
-    : [];
-  const targetPrimitiveTargets = Array.from(
-    new Map(
-      [...replacementPrimitiveTargets, ...decalPrimitiveTargets].map((target) => [
-        `${target.meshIndex}:${target.primitiveIndex}:${target.materialIndex}`,
-        target,
-      ])
-    ).values()
-  );
-
-  return rebuildGlbWithModifiedImages({
-    sourceBlob,
-    targetPrimitiveTargets,
-    replacementTextureUrl: needsTexture ? replaceTextureUrl : null,
-    replaceTextureMeshes: needsTexture ? replaceTextureMeshes : [],
-    replaceTextureScale,
-    replaceTextureScaleX,
-    replaceTextureScaleY,
-    replaceTextureRotationDeg,
-    appliedUvDecals: needsDecal ? appliedUvDecals : [],
-  });
-};
+type UvEditorMode = "decal" | "texture" | null;
 
 function App() {
   const [activeType, setActiveType] = useState<SupportedType>(
@@ -2583,10 +50,10 @@ function App() {
   );
   const [locale, setLocale] = useState<UiLocale>("ru");
   const [isPaintPanelOpen, setIsPaintPanelOpen] = useState(false);
-  const [isUvEditorOpen, setIsUvEditorOpen] = useState(false);
-  const [decalTextureUrl, setDecalTextureUrl] = useState<string | null>(null);
+  const [uvEditorMode, setUvEditorMode] = useState<UvEditorMode>(null);
+  const [decalAssets, setDecalAssets] = useState<DecalAsset[]>([]);
+  const [selectedDecalAssetId, setSelectedDecalAssetId] = useState<string | null>(null);
   const [replaceTextureUrlState, setReplaceTextureUrlState] = useState<string | null>(null);
-  const [decalFileName, setDecalFileName] = useState<string>("");
   const [replaceFileName, setReplaceFileName] = useState<string>("");
   const [isStickerEditMode, setIsStickerEditMode] = useState(false);
   const [isStickerDragging, setIsStickerDragging] = useState(false);
@@ -2595,11 +62,16 @@ function App() {
   const [uvDecalDraftUv, setUvDecalDraftUv] = useState<[number, number]>([0.5, 0.5]);
   const [uvDecalSlot, setUvDecalSlot] = useState<MeshSlot | null>(null);
   const [appliedUvDecals, setAppliedUvDecals] = useState<AppliedUvDecal[]>([]);
+  const [uvTextureDraftUv, setUvTextureDraftUv] = useState<[number, number]>([0.5, 0.5]);
+  const [uvTextureSlot, setUvTextureSlot] = useState<MeshSlot | null>(null);
+  const [appliedUvTextures, setAppliedUvTextures] = useState<AppliedUvDecal[]>([]);
   const [decalTransform, setDecalTransform] = useState<StickerTransform>({
     position: [0, 0.35, 0.25],
     normal: [0, 0, 1],
     uv: [0.5, 0.5],
     scale: 0.35,
+    scaleX: 1,
+    scaleY: 1,
     rotationDeg: 0,
   });
   const [replaceScale, setReplaceScale] = useState(0.35);
@@ -2629,6 +101,30 @@ function App() {
   const sceneRef = useRef<Scene | null>(null);
   const cameraRef = useRef<Camera | null>(null);
 
+  const selectedDecalAsset = useMemo(() => {
+    if (!decalAssets.length) {
+      return null;
+    }
+
+    return (
+      decalAssets.find((asset) => asset.id === selectedDecalAssetId) ||
+      decalAssets[decalAssets.length - 1] ||
+      null
+    );
+  }, [decalAssets, selectedDecalAssetId]);
+  const decalTextureUrl = selectedDecalAsset?.textureUrl || null;
+  const decalFiles = useMemo(
+    () =>
+      decalAssets.map((asset) => ({
+        id: asset.id,
+        fileName: asset.fileName,
+        isSelected: asset.id === selectedDecalAsset?.id,
+      })),
+    [decalAssets, selectedDecalAsset]
+  );
+  const isDecalUvEditorOpen = uvEditorMode === "decal";
+  const isTextureUvEditorOpen = uvEditorMode === "texture";
+
   useEffect(() => {
     const browserLocale = navigator.language.toLowerCase().startsWith("ru") ? "ru" : "en";
     setLocale(browserLocale);
@@ -2639,6 +135,24 @@ function App() {
       setIsStickerDragging(false);
     }
   }, [isStickerEditMode]);
+
+  useEffect(() => {
+    if (selectedDecalAsset) {
+      return;
+    }
+
+    setIsStickerEditMode(false);
+    setStickerTargetMesh(null);
+    setUvEditorMode((current) => (current === "decal" ? null : current));
+  }, [selectedDecalAsset]);
+
+  useEffect(() => {
+    if (replaceTextureUrlState) {
+      return;
+    }
+
+    setUvEditorMode((current) => (current === "texture" ? null : current));
+  }, [replaceTextureUrlState]);
 
   useEffect(() => {
     setStickerTargetMesh(null);
@@ -3009,13 +523,13 @@ function App() {
       }
 
       if (target === "decal") {
-        setDecalTextureUrl((current) => {
-          if (current && current.startsWith("blob:")) {
-            URL.revokeObjectURL(current);
-          }
-          return result;
-        });
-        setDecalFileName(file.name);
+        const nextAsset: DecalAsset = {
+          id: makeClientId(),
+          fileName: file.name,
+          textureUrl: result,
+        };
+        setDecalAssets((current) => [...current, nextAsset]);
+        setSelectedDecalAssetId(nextAsset.id);
         setIsStickerEditMode(true);
         setStickerTargetMesh(null);
       } else {
@@ -3026,9 +540,38 @@ function App() {
           return result;
         });
         setReplaceFileName(file.name);
+        setAppliedUvTextures([]);
+        setUvTextureDraftUv([0.5, 0.5]);
+        setReplaceScale(0.35);
+        setReplaceScaleX(1);
+        setReplaceScaleY(1);
+        setReplaceRotationDeg(0);
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const removeDecalAsset = (assetId: string) => {
+    let nextSelectedId: string | null = selectedDecalAssetId;
+    let removedSelected = false;
+    setDecalAssets((current) => {
+      const assetToRemove = current.find((asset) => asset.id === assetId) || null;
+      removedSelected = selectedDecalAssetId === assetId;
+      const remaining = current.filter((asset) => asset.id !== assetId);
+      if (removedSelected) {
+        nextSelectedId = remaining[remaining.length - 1]?.id || null;
+      }
+      if (assetToRemove?.textureUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(assetToRemove.textureUrl);
+      }
+      return remaining;
+    });
+    setAppliedUvDecals((current) => current.filter((entry) => entry.assetId !== assetId));
+    setSelectedDecalAssetId(nextSelectedId);
+    if (selectedDecalAssetId === assetId) {
+      setStickerTargetMesh(null);
+      setIsStickerEditMode(Boolean(nextSelectedId));
+    }
   };
 
   const handleSelectAsset = (asset: AssetRecord) => {
@@ -3101,8 +644,12 @@ function App() {
     return [];
   }, [activeType]);
   const canUseReplacement = replacementSlots.length > 0;
-  const shouldReplaceTexture = Boolean(replaceTextureUrlState) && canUseReplacement;
+  const shouldReplaceTexture = false;
   const decalSlots = replacementSlots;
+  const appliedUvOverlays = useMemo(
+    () => [...appliedUvTextures, ...appliedUvDecals],
+    [appliedUvTextures, appliedUvDecals]
+  );
   const decalSlotOptions = useMemo(
     () =>
       decalSlots.map((slot) => {
@@ -3134,6 +681,18 @@ function App() {
   }, [decalSlots]);
 
   useEffect(() => {
+    const firstSlot = decalSlots[0] || null;
+    if (!firstSlot) {
+      setUvTextureSlot(null);
+      return;
+    }
+
+    setUvTextureSlot((current) =>
+      current && decalSlots.includes(current) ? current : firstSlot
+    );
+  }, [decalSlots]);
+
+  useEffect(() => {
     if (!uvDecalSlot) {
       return;
     }
@@ -3142,13 +701,50 @@ function App() {
     const latestSlotDecal = slotDecals[slotDecals.length - 1];
     if (latestSlotDecal) {
       setUvDecalDraftUv(latestSlotDecal.uv);
+      setDecalTransform((current) => ({
+        ...current,
+        scaleX: latestSlotDecal.scaleX,
+        scaleY: latestSlotDecal.scaleY,
+      }));
       return;
     }
 
     setUvDecalDraftUv([0.5, 0.5]);
+    setDecalTransform((current) => ({
+      ...current,
+      scaleX: 1,
+      scaleY: 1,
+    }));
   }, [appliedUvDecals, uvDecalSlot]);
+
+  useEffect(() => {
+    if (!uvTextureSlot) {
+      return;
+    }
+
+    const slotTextures = getAppliedUvDecalsForMesh(appliedUvTextures, uvTextureSlot);
+    const latestSlotTexture = slotTextures[slotTextures.length - 1];
+    if (latestSlotTexture) {
+      setUvTextureDraftUv(latestSlotTexture.uv);
+      setReplaceScale(latestSlotTexture.scale);
+      setReplaceScaleX(latestSlotTexture.scaleX);
+      setReplaceScaleY(latestSlotTexture.scaleY);
+      setReplaceRotationDeg(latestSlotTexture.rotationDeg);
+      return;
+    }
+
+    setUvTextureDraftUv([0.5, 0.5]);
+    setReplaceScale(0.35);
+    setReplaceScaleX(1);
+    setReplaceScaleY(1);
+    setReplaceRotationDeg(0);
+  }, [appliedUvTextures, uvTextureSlot]);
   const uvEditorModelUrl =
     (uvDecalSlot ? composedScene.slotModelUrls[uvDecalSlot] || null : null) ||
+    selectedPreset?.baseModelUrl ||
+    null;
+  const uvTextureEditorModelUrl =
+    (uvTextureSlot ? composedScene.slotModelUrls[uvTextureSlot] || null : null) ||
     selectedPreset?.baseModelUrl ||
     null;
   const handleNext = () => {
@@ -3240,7 +836,7 @@ function App() {
           replaceTextureScaleX: replaceScaleX,
           replaceTextureScaleY: replaceScaleY,
           replaceTextureRotationDeg: replaceRotationDeg,
-          appliedUvDecals,
+          appliedUvDecals: appliedUvOverlays,
         });
 
         const url = URL.createObjectURL(processedBlob);
@@ -3256,468 +852,357 @@ function App() {
     })();
   };
 
+  const handleToggleLocale = () => {
+    setLocale((current) => (current === "ru" ? "en" : "ru"));
+  };
+
+  const handleSceneReady = ({
+    renderer,
+    scene,
+    camera,
+  }: {
+    renderer: WebGLRenderer;
+    scene: Scene;
+    camera: Camera;
+  }) => {
+    rendererRef.current = renderer;
+    sceneRef.current = scene;
+    cameraRef.current = camera;
+  };
+
+  const handleCanvasPointerReset = () => {
+    setIsStickerDragging(false);
+  };
+
+  const handleStagePointerDown = (event: ThreeEvent<PointerEvent>) => {
+    if (!decalTextureUrl || !isStickerEditMode) return;
+    updateStickerTransformFromEvent(event, null);
+    setIsStickerDragging(true);
+    event.stopPropagation();
+  };
+
+  const handleStagePointerMove = (event: ThreeEvent<PointerEvent>) => {
+    if (!decalTextureUrl || !isStickerEditMode || !isStickerDragging) return;
+    updateStickerTransformFromEvent(event, stickerTargetMesh);
+    event.stopPropagation();
+  };
+
+  const handleStagePointerUp = (event: ThreeEvent<PointerEvent>) => {
+    if (!decalTextureUrl || !isStickerEditMode) return;
+    setIsStickerDragging(false);
+    event.stopPropagation();
+  };
+
+  const handleAutoStickerPick = ({
+    mesh,
+    point,
+    normal,
+    uv,
+  }: {
+    mesh: Mesh;
+    point: Vector3;
+    normal: Vector3;
+    uv: [number, number] | null;
+  }) => {
+    setStickerTargetMesh(mesh);
+    setDecalTransform((current) => ({
+      ...current,
+      position: [point.x, point.y, point.z],
+      normal: [normal.x, normal.y, normal.z],
+      uv: uv || current.uv,
+    }));
+  };
+
+  const handleSelectColor = (color: string) => {
+    if (activeType === "beard") {
+      setSelectedBeardColor(color);
+      return;
+    }
+
+    if (activeType === "eyebrows") {
+      setSelectedEyebrowColor(color);
+      return;
+    }
+
+    if (activeType === "lipshape") {
+      setSelectedLipColor(color);
+      return;
+    }
+
+    setSelectedHairColor(color);
+  };
+
+  const selectedColor =
+    activeType === "beard"
+      ? selectedBeardColor
+      : activeType === "eyebrows"
+        ? selectedEyebrowColor
+        : activeType === "lipshape"
+          ? selectedLipColor
+          : selectedHairColor;
+
+  const showColorPanel =
+    activeType === "hair" ||
+    activeType === "beard" ||
+    activeType === "eyebrows" ||
+    activeType === "lipshape";
+
+  const paintPanelProps: PaintPanelProps = {
+    copy,
+    decalFiles,
+    hasDecal: Boolean(decalAssets.length),
+    onUploadDecal: () => decalUploadInputRef.current?.click(),
+    onRemoveDecal: () => {
+      if (selectedDecalAssetId) {
+        removeDecalAsset(selectedDecalAssetId);
+      }
+    },
+    onSelectDecalFile: setSelectedDecalAssetId,
+    onRemoveDecalFile: removeDecalAsset,
+    isUvEditorOpen: isDecalUvEditorOpen,
+    onToggleUvEditor: () =>
+      setUvEditorMode((current) => (current === "decal" ? null : "decal")),
+    isTextureUvEditorOpen,
+    onToggleTextureUvEditor: () =>
+      setUvEditorMode((current) => (current === "texture" ? null : "texture")),
+    isDecalEditMode: isStickerEditMode,
+    onToggleDecalEditMode: setIsStickerEditMode,
+    decalScale: decalTransform.scale,
+    onDecalScale: (value) =>
+      setDecalTransform((current) => ({
+        ...current,
+        scale: value,
+      })),
+    decalRotationDeg: decalTransform.rotationDeg,
+    onDecalRotationDeg: (value) =>
+      setDecalTransform((current) => ({
+        ...current,
+        rotationDeg: value,
+      })),
+    textureFileName: replaceFileName,
+    hasTexture: Boolean(replaceTextureUrlState),
+    canUseReplacement,
+    onUploadTexture: () => textureUploadInputRef.current?.click(),
+    onRemoveTexture: () => {
+      setReplaceTextureUrlState((current) => {
+        if (current && current.startsWith("blob:")) {
+          URL.revokeObjectURL(current);
+        }
+        return null;
+      });
+      setReplaceFileName("");
+      setAppliedUvTextures([]);
+      setUvTextureDraftUv([0.5, 0.5]);
+      setUvEditorMode((current) => (current === "texture" ? null : current));
+    },
+    replaceScale,
+    onReplaceScale: setReplaceScale,
+    replaceScaleX,
+    onReplaceScaleX: setReplaceScaleX,
+    replaceScaleY,
+    onReplaceScaleY: setReplaceScaleY,
+    replaceRotationDeg: replaceRotationDeg,
+    onReplaceRotationDeg: setReplaceRotationDeg,
+    isAvatarStatic,
+    onToggleAvatarStatic: setIsAvatarStatic,
+  };
+
+  const textureUvCopy = useMemo(
+    () => ({
+      ...copy,
+      uvEditorTitle: locale === "ru" ? "UV-текстура" : "UV texture",
+      uvEditorHint:
+        locale === "ru"
+          ? "Двигайте текстуру по UV-канве и нажмите применить"
+          : "Move the texture on the UV canvas and apply it to the avatar",
+    }),
+    [copy, locale]
+  );
+
+  const decalUvEditorProps: UvDecalEditorProps = {
+    copy,
+    slotOptions: decalSlotOptions,
+    selectedSlot: uvDecalSlot,
+    onSelectSlot: (slot) => setUvDecalSlot(slot as MeshSlot),
+    modelUrl: uvEditorModelUrl,
+    decalTextureUrl,
+    appliedDecals: appliedUvDecals,
+    draftUv: uvDecalDraftUv,
+    scale: decalTransform.scale,
+    scaleX: decalTransform.scaleX,
+    scaleY: decalTransform.scaleY,
+    rotationDeg: decalTransform.rotationDeg,
+    onDraftUvChange: setUvDecalDraftUv,
+    onScaleXChange: (value) =>
+      setDecalTransform((current) => ({
+        ...current,
+        scaleX: value,
+      })),
+    onScaleYChange: (value) =>
+      setDecalTransform((current) => ({
+        ...current,
+        scaleY: value,
+      })),
+    onApply: () => {
+      if (!decalTextureUrl || !uvDecalSlot || !selectedDecalAsset) {
+        return;
+      }
+
+      setAppliedUvDecals((current) => [
+        ...current,
+        {
+          id: makeClientId(),
+          assetId: selectedDecalAsset.id,
+          fileName: selectedDecalAsset.fileName,
+          meshName: uvDecalSlot,
+          uv: uvDecalDraftUv,
+          scale: decalTransform.scale,
+          scaleX: decalTransform.scaleX,
+          scaleY: decalTransform.scaleY,
+          rotationDeg: decalTransform.rotationDeg,
+          textureUrl: decalTextureUrl,
+        },
+      ]);
+    },
+    onReset: () => {
+      setUvDecalDraftUv([0.5, 0.5]);
+      setDecalTransform((current) => ({
+        ...current,
+        scaleX: 1,
+        scaleY: 1,
+      }));
+    },
+    onClearApplied: () =>
+      setAppliedUvDecals((current) =>
+        uvDecalSlot ? current.filter((entry) => entry.meshName !== uvDecalSlot) : current
+      ),
+    hasApplied: Boolean(
+      uvDecalSlot && getAppliedUvDecalsForMesh(appliedUvDecals, uvDecalSlot).length
+    ),
+  };
+
+  const textureUvEditorProps: UvDecalEditorProps = {
+    copy: textureUvCopy,
+    slotOptions: decalSlotOptions,
+    selectedSlot: uvTextureSlot,
+    onSelectSlot: (slot) => setUvTextureSlot(slot as MeshSlot),
+    modelUrl: uvTextureEditorModelUrl,
+    decalTextureUrl: replaceTextureUrlState,
+    appliedDecals: appliedUvTextures,
+    draftUv: uvTextureDraftUv,
+    scale: replaceScale,
+    scaleX: replaceScaleX,
+    scaleY: replaceScaleY,
+    rotationDeg: replaceRotationDeg,
+    onDraftUvChange: setUvTextureDraftUv,
+    onScaleXChange: setReplaceScaleX,
+    onScaleYChange: setReplaceScaleY,
+    onApply: () => {
+      if (!replaceTextureUrlState || !uvTextureSlot) {
+        return;
+      }
+
+      setAppliedUvTextures((current) => [
+        ...current,
+        {
+          id: makeClientId(),
+          assetId: `texture:${makeClientId()}`,
+          fileName: replaceFileName || "texture",
+          meshName: uvTextureSlot,
+          uv: uvTextureDraftUv,
+          scale: replaceScale,
+          scaleX: replaceScaleX,
+          scaleY: replaceScaleY,
+          rotationDeg: replaceRotationDeg,
+          textureUrl: replaceTextureUrlState,
+        },
+      ]);
+    },
+    onReset: () => {
+      setUvTextureDraftUv([0.5, 0.5]);
+      setReplaceScale(0.35);
+      setReplaceScaleX(1);
+      setReplaceScaleY(1);
+      setReplaceRotationDeg(0);
+    },
+    onClearApplied: () =>
+      setAppliedUvTextures((current) =>
+        uvTextureSlot ? current.filter((entry) => entry.meshName !== uvTextureSlot) : current
+      ),
+    hasApplied: Boolean(
+      uvTextureSlot && getAppliedUvDecalsForMesh(appliedUvTextures, uvTextureSlot).length
+    ),
+  };
+
+  const uvEditorProps =
+    uvEditorMode === "texture" ? textureUvEditorProps : decalUvEditorProps;
   return (
     <main className="creator-shell">
-      <section className="stage-panel">
-        <button
-          className="paint-toggle-button"
-          type="button"
-          aria-label={copy.paintPanel}
-          onClick={() => setIsPaintPanelOpen((current) => !current)}
-        >
-          <span className="paint-toggle-button__icon">
-            <SettingsGearIcon />
-          </span>
-        </button>
-        <div className="stage-toolbar">
-          <button
-            className="locale-toggle"
-            type="button"
-            onClick={() => setLocale((current) => (current === "ru" ? "en" : "ru"))}
-            aria-label={`Switch language to ${locale === "ru" ? "English" : "Russian"}`}
-          >
-            <span className="locale-chip locale-chip--active">{locale === "ru" ? "R" : "E"}</span>
-          </button>
-          <button className="next-button" type="button" onClick={handleNext}>
-            {copy.next} <span aria-hidden>→</span>
-          </button>
-        </div>
-
-        {isPaintPanelOpen ? (
-          <PaintPanel
-            copy={copy}
-            decalFileName={decalFileName}
-            hasDecal={Boolean(decalTextureUrl)}
-            onUploadDecal={() => decalUploadInputRef.current?.click()}
-            onRemoveDecal={() => {
-              setDecalTextureUrl((current) => {
-                if (current && current.startsWith("blob:")) {
-                  URL.revokeObjectURL(current);
-                }
-                return null;
-              });
-              setDecalFileName("");
-              setStickerTargetMesh(null);
-              setIsStickerEditMode(false);
-            }}
-            isUvEditorOpen={isUvEditorOpen}
-            onToggleUvEditor={() => setIsUvEditorOpen((current) => !current)}
-            isDecalEditMode={isStickerEditMode}
-            onToggleDecalEditMode={setIsStickerEditMode}
-            decalScale={decalTransform.scale}
-            onDecalScale={(value) =>
-              setDecalTransform((current) => ({
-                ...current,
-                scale: value,
-              }))
-            }
-            decalRotationDeg={decalTransform.rotationDeg}
-            onDecalRotationDeg={(value) =>
-              setDecalTransform((current) => ({
-                ...current,
-                rotationDeg: value,
-              }))
-            }
-            textureFileName={replaceFileName}
-            hasTexture={Boolean(replaceTextureUrlState)}
-            canUseReplacement={canUseReplacement}
-            onUploadTexture={() => textureUploadInputRef.current?.click()}
-            onRemoveTexture={() => {
-              setReplaceTextureUrlState((current) => {
-                if (current && current.startsWith("blob:")) {
-                  URL.revokeObjectURL(current);
-                }
-                return null;
-              });
-              setReplaceFileName("");
-            }}
-            replaceScale={replaceScale}
-            onReplaceScale={setReplaceScale}
-            replaceScaleX={replaceScaleX}
-            onReplaceScaleX={setReplaceScaleX}
-            replaceScaleY={replaceScaleY}
-            onReplaceScaleY={setReplaceScaleY}
-            replaceRotationDeg={replaceRotationDeg}
-            onReplaceRotationDeg={setReplaceRotationDeg}
-            isAvatarStatic={isAvatarStatic}
-            onToggleAvatarStatic={setIsAvatarStatic}
-          />
-        ) : null}
-
-        {isPaintPanelOpen && isUvEditorOpen ? (
-          <UvDecalEditor
-            copy={copy}
-            slotOptions={decalSlotOptions}
-            selectedSlot={uvDecalSlot}
-            onSelectSlot={(slot) => setUvDecalSlot(slot as MeshSlot)}
-            modelUrl={uvEditorModelUrl}
-            decalTextureUrl={decalTextureUrl}
-            draftUv={uvDecalDraftUv}
-            scale={decalTransform.scale}
-            rotationDeg={decalTransform.rotationDeg}
-            onDraftUvChange={setUvDecalDraftUv}
-            onApply={() => {
-              if (!decalTextureUrl || !uvDecalSlot) {
-                return;
-              }
-
-              setAppliedUvDecals((current) => [
-                ...current,
-                {
-                  meshName: uvDecalSlot,
-                  uv: uvDecalDraftUv,
-                  scale: decalTransform.scale,
-                  rotationDeg: decalTransform.rotationDeg,
-                  textureUrl: decalTextureUrl,
-                },
-              ]);
-            }}
-            onReset={() => setUvDecalDraftUv([0.5, 0.5])}
-            onClearApplied={() =>
-              setAppliedUvDecals((current) =>
-                uvDecalSlot ? current.filter((entry) => entry.meshName !== uvDecalSlot) : current
-              )
-            }
-            hasApplied={Boolean(
-              uvDecalSlot && getAppliedUvDecalsForMesh(appliedUvDecals, uvDecalSlot).length
-            )}
-          />
-        ) : null}
-
-        <div className="stage-canvas-wrap">
-          <Canvas
-            shadows="percentage"
-            dpr={[1, 2]}
-            gl={{ preserveDrawingBuffer: true, antialias: true }}
-            camera={{ position: [0, 1.34, 5.05], fov: 31 }}
-            onPointerUp={() => setIsStickerDragging(false)}
-            onPointerLeave={() => setIsStickerDragging(false)}
-          >
-            <SceneBridge
-              onReady={({ renderer, scene, camera }) => {
-                rendererRef.current = renderer;
-                sceneRef.current = scene;
-                cameraRef.current = camera;
-              }}
-            />
-            <color attach="background" args={["#ffffff"]} />
-            <ambientLight intensity={0.62} />
-            <hemisphereLight intensity={0.36} groundColor="#cfcfcf" />
-            <directionalLight
-              position={[2.5, 4.2, 2.8]}
-              intensity={1.2}
-              castShadow
-              shadow-mapSize-width={2048}
-              shadow-mapSize-height={2048}
-              shadow-camera-near={0.1}
-              shadow-camera-far={14}
-              shadow-camera-left={-2.6}
-              shadow-camera-right={2.6}
-              shadow-camera-top={2.8}
-              shadow-camera-bottom={-2.8}
-            />
-            <directionalLight position={[-2.4, 1.8, -1.8]} intensity={0.42} />
-
-            <Suspense fallback={<SceneLoader />}>
-              <group
-                ref={avatarExportGroupRef}
-                onPointerDown={(event) => {
-                  if (!decalTextureUrl || !isStickerEditMode) return;
-                  updateStickerTransformFromEvent(event, null);
-                  setIsStickerDragging(true);
-                  event.stopPropagation();
-                }}
-                onPointerMove={(event) => {
-                  if (!decalTextureUrl || !isStickerEditMode || !isStickerDragging)
-                    return;
-                  updateStickerTransformFromEvent(event, stickerTargetMesh);
-                  event.stopPropagation();
-                }}
-                onPointerUp={(event) => {
-                  if (!decalTextureUrl || !isStickerEditMode) return;
-                  setIsStickerDragging(false);
-                  event.stopPropagation();
-                }}
-              >
-                {selectedPreset?.baseModelUrl ? (
-                  <AvatarModel
-                    modelUrl={selectedPreset.baseModelUrl}
-                    hiddenMeshes={composedScene.hiddenBaseMeshes}
-                    tintByMesh={tintByMesh}
-                    idleAnimationUrl={idleAnimationUrl}
-                    replaceTextureUrl={shouldReplaceTexture ? replaceTextureUrlState : null}
-                    replaceTextureMeshes={shouldReplaceTexture ? replacementSlots : []}
-                    replaceTextureScale={replaceScale}
-                    replaceTextureScaleX={replaceScaleX}
-                    replaceTextureScaleY={replaceScaleY}
-                    replaceTextureRotationDeg={replaceRotationDeg}
-                    enableIdleAnimation={!isAvatarStatic}
-                    appliedUvDecals={appliedUvDecals}
-                  />
-                ) : (
-                  <PlaceholderAvatar />
-                )}
-
-                {composedScene.parts.map((part) => (
-                  <AvatarModel
-                    key={`${part.modelUrl}:${part.includeMeshes.join("|")}`}
-                    modelUrl={part.modelUrl}
-                    includeMeshes={part.includeMeshes}
-                    tintByMesh={tintByMesh}
-                    idleAnimationUrl={idleAnimationUrl}
-                    replaceTextureUrl={shouldReplaceTexture ? replaceTextureUrlState : null}
-                    replaceTextureMeshes={shouldReplaceTexture ? replacementSlots : []}
-                    replaceTextureScale={replaceScale}
-                    replaceTextureScaleX={replaceScaleX}
-                    replaceTextureScaleY={replaceScaleY}
-                    replaceTextureRotationDeg={replaceRotationDeg}
-                    enableIdleAnimation={!isAvatarStatic}
-                    appliedUvDecals={appliedUvDecals}
-                  />
-                ))}
-
-                {composedScene.beardMaskUrl && composedScene.beardMaskModelUrl ? (
-                  <AvatarHeadMaskLayer
-                    modelUrl={composedScene.beardMaskModelUrl}
-                    maskUrl={composedScene.beardMaskUrl}
-                    idleAnimationUrl={idleAnimationUrl}
-                    enableIdleAnimation={!isAvatarStatic}
-                  />
-                ) : null}
-                {composedScene.eyebrowMaskUrl && composedScene.eyebrowMaskModelUrl ? (
-                  <AvatarHeadMaskLayer
-                    modelUrl={composedScene.eyebrowMaskModelUrl}
-                    maskUrl={composedScene.eyebrowMaskUrl}
-                    idleAnimationUrl={idleAnimationUrl}
-                    tintColor={selectedEyebrowColor}
-                    renderOrder={21}
-                    enableIdleAnimation={!isAvatarStatic}
-                  />
-                ) : null}
-                {composedScene.facemaskMaskUrl && composedScene.facemaskMaskModelUrl ? (
-                  <AvatarHeadMaskLayer
-                    modelUrl={composedScene.facemaskMaskModelUrl}
-                    maskUrl={composedScene.facemaskMaskUrl}
-                    idleAnimationUrl={idleAnimationUrl}
-                    renderOrder={22}
-                    enableIdleAnimation={!isAvatarStatic}
-                  />
-                ) : null}
-              </group>
-              <AutoStickerProjector
-                enabled={Boolean(decalTextureUrl)}
-                hasTarget={Boolean(stickerTargetMesh)}
-                onPick={({ mesh, point, normal, uv }) => {
-                  setStickerTargetMesh(mesh);
-                  setDecalTransform((current) => ({
-                    ...current,
-                    position: [point.x, point.y, point.z],
-                    normal: [normal.x, normal.y, normal.z],
-                    uv: uv || current.uv,
-                  }));
-                }}
-              />
-
-              <ContactShadows
-                position={[0, -1.06, 0]}
-                opacity={0.24}
-                width={3.8}
-                height={3.8}
-                blur={3.9}
-                far={2.3}
-              />
-            </Suspense>
-
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.06, 0]} receiveShadow>
-              <planeGeometry args={[8, 8]} />
-              <shadowMaterial transparent opacity={0.26} />
-            </mesh>
-
-            <OrbitControls
-              makeDefault
-              enablePan
-              enabled={!isStickerDragging}
-              enableDamping
-              dampingFactor={0.09}
-              minDistance={0.65}
-              maxDistance={16}
-              minPolarAngle={Math.PI / 3.2}
-              maxPolarAngle={Math.PI / 1.72}
-              target={[0, -0.08, 0]}
-              mouseButtons={{
-                LEFT: MOUSE.ROTATE,
-                MIDDLE: MOUSE.DOLLY,
-                RIGHT: MOUSE.PAN,
-              }}
-            />
-          </Canvas>
-        </div>
-
-        {activeType === "hair" ||
-        activeType === "beard" ||
-        activeType === "eyebrows" ||
-        activeType === "lipshape" ? (
-          <div className="hair-color-panel" aria-label={colorPanelLabel}>
-            {HAIR_COLOR_SWATCHES.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className={`hair-color-dot${(
-                  activeType === "beard"
-                    ? selectedBeardColor
-                    : activeType === "eyebrows"
-                      ? selectedEyebrowColor
-                      : activeType === "lipshape"
-                        ? selectedLipColor
-                        : selectedHairColor
-                ) === color
-                  ? " hair-color-dot--active"
-                  : ""}`}
-                onClick={() =>
-                  activeType === "beard"
-                    ? setSelectedBeardColor(color)
-                    : activeType === "eyebrows"
-                      ? setSelectedEyebrowColor(color)
-                      : activeType === "lipshape"
-                        ? setSelectedLipColor(color)
-                        : setSelectedHairColor(color)
-                }
-                style={{ background: color }}
-                title={color}
-                aria-label={`${colorPanelLabel} ${color}`}
-              />
-            ))}
-          </div>
-        ) : null}
-
-        <input
-          ref={decalUploadInputRef}
-          type="file"
-          accept="image/png"
-          className="texture-file-input"
-          onChange={(event) => {
-            const file = event.target.files?.[0] || null;
-            handleUploadByTarget(file, "decal");
-            event.currentTarget.value = "";
-          }}
-        />
-        <input
-          ref={textureUploadInputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/jpg"
-          className="texture-file-input"
-          onChange={(event) => {
-            const file = event.target.files?.[0] || null;
-            handleUploadByTarget(file, "replace");
-            event.currentTarget.value = "";
-          }}
-        />
-        {isExportModalOpen ? (
-          <ExportPreviewModal
-            copy={copy}
-            previewUrl={exportPreviewUrl}
-            downloadUrl={exportDownloadUrl}
-            fileName={exportFileName}
-            onClose={() => setIsExportModalOpen(false)}
-          />
-        ) : null}
-      </section>
-
-      <aside className="asset-panel">
-        <div className="asset-list-panel">
-          <div className="library-controls">
-            <div className="gender-switch">
-              {(["male", "female"] as UiGender[]).map((gender) => (
-                <button
-                  key={gender}
-                  type="button"
-                  className={`gender-btn${selectedGender === gender ? " gender-btn--active" : ""}`}
-                  onClick={() => setSelectedGender(gender)}
-                >
-                  {gender === "male" ? copy.male : copy.female}
-                </button>
-              ))}
-            </div>
-
-            <div className="preset-strip" aria-label={copy.preset}>
-              {presetOptions.map((preset, index) => {
-                const isActive = selectedPresetId === preset.id;
-
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className={`preset-btn${isActive ? " preset-btn--active" : ""}`}
-                    onClick={() => setSelectedPresetId(preset.id)}
-                    title={`${copy.preset} ${index + 1}`}
-                  >
-                    {preset.previewUrl ? (
-                      <PresetPreviewImage
-                        src={preset.previewUrl}
-                        alt={`${copy.preset} ${index + 1}`}
-                      />
-                    ) : (
-                      <span className="preset-btn__fallback">{index + 1}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="type-tabs">
-            {allTypes.map((typeMeta) => (
-              <button
-                key={typeMeta.id}
-                type="button"
-                className={`tab-btn${activeType === typeMeta.id ? " tab-btn--active" : ""}`}
-                onClick={() => setActiveType(typeMeta.id)}
-              >
-                {typeLabels[typeMeta.id]}
-              </button>
-            ))}
-          </div>
-
-          <div className="asset-grid">
-            <button
-              type="button"
-              className={`asset-card asset-card--clear${selectedAssetId ? "" : " asset-card--active"}`}
-              onClick={handleClearType}
-              title={copy.clearSelection}
-              aria-label={copy.clearSelection}
-            >
-              <span className="asset-thumb-wrap asset-thumb-wrap--clear">
-                <ClearAssetIcon />
-              </span>
-            </button>
-
-            {visibleAssets.map((asset) => {
-              const id = String(asset.id);
-              const localItem = localItemsByAsset.get(makeLookupKey(asset.type, id));
-              const imageSrc = localItem?.iconUrl || asset.iconUrl || "";
-              const isActive = selectedAssetId === id;
-
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  className={`asset-card${isActive ? " asset-card--active" : ""}`}
-                  onClick={() => handleSelectAsset(asset)}
-                  title={`${asset.name} (${id})`}
-                >
-                  <span className="asset-thumb-wrap">
-                    {imageSrc ? <img src={imageSrc} alt={asset.name} loading="lazy" /> : null}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-      </aside>
+      <StagePanel
+        copy={copy}
+        locale={locale}
+        onToggleLocale={handleToggleLocale}
+        onNext={handleNext}
+        isPaintPanelOpen={isPaintPanelOpen}
+        onTogglePaintPanel={() => setIsPaintPanelOpen((current) => !current)}
+        paintPanelProps={paintPanelProps}
+        showUvEditor={isPaintPanelOpen && uvEditorMode !== null}
+        uvEditorProps={uvEditorProps}
+        avatarExportGroupRef={avatarExportGroupRef}
+        onSceneReady={handleSceneReady}
+        onCanvasPointerReset={handleCanvasPointerReset}
+        onStagePointerDown={handleStagePointerDown}
+        onStagePointerMove={handleStagePointerMove}
+        onStagePointerUp={handleStagePointerUp}
+        selectedPresetBaseModelUrl={selectedPreset?.baseModelUrl || null}
+        composedScene={composedScene}
+        tintByMesh={tintByMesh}
+        idleAnimationUrl={idleAnimationUrl}
+        shouldReplaceTexture={shouldReplaceTexture}
+        replaceTextureUrl={replaceTextureUrlState}
+        replacementSlots={replacementSlots}
+        replaceScale={replaceScale}
+        replaceScaleX={replaceScaleX}
+        replaceScaleY={replaceScaleY}
+        replaceRotationDeg={replaceRotationDeg}
+        isAvatarStatic={isAvatarStatic}
+        isStickerDragging={isStickerDragging}
+        appliedUvDecals={appliedUvOverlays}
+        selectedEyebrowColor={selectedEyebrowColor}
+        decalTextureUrl={decalTextureUrl}
+        stickerTargetMesh={stickerTargetMesh}
+        onAutoStickerPick={handleAutoStickerPick}
+        showColorPanel={showColorPanel}
+        colorPanelLabel={colorPanelLabel}
+        selectedColor={selectedColor}
+        onSelectColor={handleSelectColor}
+        decalUploadInputRef={decalUploadInputRef}
+        textureUploadInputRef={textureUploadInputRef}
+        onUploadByTarget={handleUploadByTarget}
+        isExportModalOpen={isExportModalOpen}
+        exportPreviewUrl={exportPreviewUrl}
+        exportDownloadUrl={exportDownloadUrl}
+        exportFileName={exportFileName}
+        onCloseExportModal={() => setIsExportModalOpen(false)}
+      />
+      <AssetSidebar
+        copy={copy}
+        selectedGender={selectedGender}
+        onSelectGender={setSelectedGender}
+        presetOptions={presetOptions}
+        selectedPresetId={selectedPresetId}
+        onSelectPresetId={setSelectedPresetId}
+        activeType={activeType}
+        onSelectType={setActiveType}
+        typeLabels={typeLabels}
+        selectedAssetId={selectedAssetId}
+        onClearType={handleClearType}
+        visibleAssets={visibleAssets}
+        localItemsByAsset={localItemsByAsset}
+        onSelectAsset={handleSelectAsset}
+      />
     </main>
-  );
-}
+  );}
 
 useGLTF.preload(IDLE_ANIMATION_URL.male);
 useGLTF.preload(IDLE_ANIMATION_URL.female);

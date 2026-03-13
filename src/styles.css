@@ -261,6 +261,53 @@ body {
   align-items: center;
 }
 
+.paint-panel-file-list {
+  display: grid;
+  gap: 6px;
+}
+
+.paint-panel-file-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 6px;
+  align-items: center;
+}
+
+.paint-panel-file-row__select {
+  min-width: 0;
+  min-height: 32px;
+  border: 1px solid #d0d0d0;
+  border-radius: 9px;
+  background: #f7f7f7;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2a2a2a;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paint-panel-file-row--active .paint-panel-file-row__select {
+  border-color: #00d9e8;
+  box-shadow: 0 0 0 1px rgba(0, 217, 232, 0.28);
+  background: #fcffff;
+}
+
+.paint-panel-file-row__delete {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #b32727;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #b32727;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .paint-panel-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -289,8 +336,25 @@ body {
   color: #232323;
 }
 
+.sticker-slider__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  gap: 8px;
+  align-items: center;
+}
+
 .sticker-slider input[type="range"] {
   width: 100%;
+}
+
+.sticker-slider__number {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid #cbcbcb;
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .texture-file-input {
@@ -425,6 +489,14 @@ body {
   padding: 8px 10px;
   white-space: normal;
   line-height: 1.15;
+}
+
+.uv-editor__action-btn--symbol {
+  flex-basis: 44px;
+  width: 44px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
 }
 
 .uv-editor__resize-handle {

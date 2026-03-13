@@ -7,6 +7,7 @@ type Copy = {
   uvEditorHint: string;
   uvApply: string;
   uvReset: string;
+  uvUndoLabel: string;
   uvClearApplied: string;
   uvTarget: string;
   uvEmpty: string;
@@ -17,22 +18,38 @@ type SlotOption = {
   label: string;
 };
 
+type AppliedUvDecal = {
+  id: string;
+  meshName: string;
+  uv: [number, number];
+  scale: number;
+  scaleX: number;
+  scaleY: number;
+  rotationDeg: number;
+  textureUrl: string;
+};
+
 type LoadedUvMesh = {
   geometry: BufferGeometry;
   baseTextureImage: CanvasImageSource | null;
 };
 
-type UvDecalEditorProps = {
+export type UvDecalEditorProps = {
   copy: Copy;
   slotOptions: SlotOption[];
   selectedSlot: string | null;
   onSelectSlot: (slot: string) => void;
   modelUrl: string | null;
   decalTextureUrl: string | null;
+  appliedDecals: readonly AppliedUvDecal[];
   draftUv: [number, number];
   scale: number;
+  scaleX: number;
+  scaleY: number;
   rotationDeg: number;
   onDraftUvChange: (uv: [number, number]) => void;
+  onScaleXChange: (value: number) => void;
+  onScaleYChange: (value: number) => void;
   onApply: () => void;
   onReset: () => void;
   onClearApplied: () => void;
@@ -55,10 +72,20 @@ type CanvasSize = {
   height: number;
 };
 
+type DraftSnapshot = {
+  uv: [number, number];
+  scaleX: number;
+  scaleY: number;
+};
+
+type HandleName = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+
 type InteractionState =
   | {
-      mode: "decal";
+      mode: "move";
       pointerId: number;
+      offsetU: number;
+      offsetV: number;
     }
   | {
       mode: "pan";
@@ -67,6 +94,17 @@ type InteractionState =
       startY: number;
       startPanX: number;
       startPanY: number;
+    }
+  | {
+      mode: "resize";
+      pointerId: number;
+      handle: HandleName;
+      startCenter: { x: number; y: number };
+      startWidth: number;
+      startHeight: number;
+      baseWidth: number;
+      baseHeight: number;
+      rotationRad: number;
     }
   | null;
 
@@ -80,6 +118,11 @@ type ResizeState =
     }
   | null;
 
+type ScreenPoint = {
+  x: number;
+  y: number;
+};
+
 const DEFAULT_PANEL_SIZE: PanelSize = { width: 420, height: 650 };
 const DEFAULT_VIEWPORT: ViewportState = { zoom: 1, panX: 0, panY: 0 };
 const MIN_PANEL_WIDTH = 340;
@@ -88,6 +131,11 @@ const MAX_PANEL_WIDTH_FALLBACK = 760;
 const MAX_PANEL_HEIGHT_FALLBACK = 840;
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 10;
+const MIN_SCALE_AXIS = 0.01;
+const MAX_SCALE_AXIS = 8;
+const MIN_SCREEN_SIZE = 4;
+const HANDLE_SIZE = 10;
+const HANDLE_HIT_RADIUS = 12;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const clamp01 = (value: number) => clamp(value, 0, 1);
@@ -150,11 +198,7 @@ const getCanvasMetrics = (size: CanvasSize, viewport: ViewportState) => {
   };
 };
 
-const uvToScreen = (
-  uv: [number, number],
-  size: CanvasSize,
-  viewport: ViewportState
-) => {
+const uvToScreen = (uv: [number, number], size: CanvasSize, viewport: ViewportState) => {
   const metrics = getCanvasMetrics(size, viewport);
   return {
     x: metrics.originX + uv[0] * metrics.viewSize,
@@ -162,18 +206,172 @@ const uvToScreen = (
   };
 };
 
-const screenToUv = (
-  x: number,
-  y: number,
-  size: CanvasSize,
-  viewport: ViewportState
-) => {
+const screenToUv = (x: number, y: number, size: CanvasSize, viewport: ViewportState) => {
   const metrics = getCanvasMetrics(size, viewport);
   return {
     u: (x - metrics.originX) / Math.max(1, metrics.viewSize),
     v: 1 - (y - metrics.originY) / Math.max(1, metrics.viewSize),
   };
 };
+
+const getZoomedViewport = ({
+  viewport,
+  size,
+  pointerX,
+  pointerY,
+  zoomFactor,
+}: {
+  viewport: ViewportState;
+  size: CanvasSize;
+  pointerX: number;
+  pointerY: number;
+  zoomFactor: number;
+}): ViewportState => {
+  const uvBeforeZoom = screenToUv(pointerX, pointerY, size, viewport);
+  const nextZoom = clamp(viewport.zoom * zoomFactor, MIN_ZOOM, MAX_ZOOM);
+  const nextViewSize = Math.min(size.width, size.height) * nextZoom;
+  const screenV = 1 - uvBeforeZoom.v;
+  const nextOriginX = pointerX - uvBeforeZoom.u * nextViewSize;
+  const nextOriginY = pointerY - screenV * nextViewSize;
+
+  return {
+    zoom: nextZoom,
+    panX: nextOriginX + nextViewSize * 0.5 - size.width * 0.5,
+    panY: nextOriginY + nextViewSize * 0.5 - size.height * 0.5,
+  };
+};
+
+const getDecalScreenMetrics = ({
+  image,
+  draftUv,
+  scale,
+  scaleX,
+  scaleY,
+  size,
+  viewport,
+}: {
+  image: HTMLImageElement;
+  draftUv: [number, number];
+  scale: number;
+  scaleX: number;
+  scaleY: number;
+  size: CanvasSize;
+  viewport: ViewportState;
+}) => {
+  const center = uvToScreen(draftUv, size, viewport);
+  const { viewSize } = getCanvasMetrics(size, viewport);
+  const baseWidth = Math.max(MIN_SCREEN_SIZE, viewSize * scale);
+  const aspect =
+    (image.naturalWidth || image.width || 1) /
+    Math.max(1, image.naturalHeight || image.height || 1);
+  const baseHeight = Math.max(MIN_SCREEN_SIZE, baseWidth / Math.max(0.1, aspect));
+
+  return {
+    center,
+    baseWidth,
+    baseHeight,
+    width: Math.max(MIN_SCREEN_SIZE, baseWidth * Math.max(MIN_SCALE_AXIS, scaleX)),
+    height: Math.max(MIN_SCREEN_SIZE, baseHeight * Math.max(MIN_SCALE_AXIS, scaleY)),
+    rotationRad: (-rotationDegToRad(0) + 0),
+  };
+};
+
+const rotationDegToRad = (rotationDeg: number) => (-rotationDeg * Math.PI) / 180;
+
+const rotatePoint = (point: ScreenPoint, angleRad: number): ScreenPoint => ({
+  x: point.x * Math.cos(angleRad) - point.y * Math.sin(angleRad),
+  y: point.x * Math.sin(angleRad) + point.y * Math.cos(angleRad),
+});
+
+const toLocalPoint = (point: ScreenPoint, center: ScreenPoint, angleRad: number) =>
+  rotatePoint({ x: point.x - center.x, y: point.y - center.y }, -angleRad);
+
+const toScreenPoint = (point: ScreenPoint, center: ScreenPoint, angleRad: number) => {
+  const rotated = rotatePoint(point, angleRad);
+  return { x: center.x + rotated.x, y: center.y + rotated.y };
+};
+
+const isInsideRect = (point: ScreenPoint, width: number, height: number) =>
+  Math.abs(point.x) <= width * 0.5 && Math.abs(point.y) <= height * 0.5;
+
+const HANDLE_FACTORS: Record<HandleName, ScreenPoint> = {
+  n: { x: 0, y: -0.5 },
+  s: { x: 0, y: 0.5 },
+  e: { x: 0.5, y: 0 },
+  w: { x: -0.5, y: 0 },
+  ne: { x: 0.5, y: -0.5 },
+  nw: { x: -0.5, y: -0.5 },
+  se: { x: 0.5, y: 0.5 },
+  sw: { x: -0.5, y: 0.5 },
+};
+
+const getHandlePositions = (center: ScreenPoint, width: number, height: number, angleRad: number) =>
+  (Object.entries(HANDLE_FACTORS) as [HandleName, ScreenPoint][]).map(([handle, factor]) => ({
+    handle,
+    point: toScreenPoint(
+      {
+        x: factor.x * width,
+        y: factor.y * height,
+      },
+      center,
+      angleRad
+    ),
+  }));
+
+const drawDecal = ({
+  context,
+  image,
+  center,
+  width,
+  height,
+  rotationDeg,
+  strokeStyle,
+  drawHandles,
+}: {
+  context: CanvasRenderingContext2D;
+  image: CanvasImageSource;
+  center: ScreenPoint;
+  width: number;
+  height: number;
+  rotationDeg: number;
+  strokeStyle?: string;
+  drawHandles?: boolean;
+}) => {
+  const rotationRad = rotationDegToRad(rotationDeg);
+  context.save();
+  context.translate(center.x, center.y);
+  context.rotate(rotationRad);
+  context.drawImage(image, -width * 0.5, -height * 0.5, width, height);
+  if (strokeStyle) {
+    context.strokeStyle = strokeStyle;
+    context.lineWidth = 2;
+    context.strokeRect(-width * 0.5, -height * 0.5, width, height);
+  }
+  if (drawHandles) {
+    const localHandlePoints = Object.values(HANDLE_FACTORS);
+    context.fillStyle = "#ffffff";
+    context.strokeStyle = "#00d9e8";
+    context.lineWidth = 1.5;
+    for (const factor of localHandlePoints) {
+      const x = factor.x * width;
+      const y = factor.y * height;
+      context.beginPath();
+      context.rect(x - HANDLE_SIZE * 0.5, y - HANDLE_SIZE * 0.5, HANDLE_SIZE, HANDLE_SIZE);
+      context.fill();
+      context.stroke();
+    }
+  }
+  context.restore();
+};
+
+const loadImage = (url: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = url;
+  });
 
 export function UvDecalEditor({
   copy,
@@ -182,10 +380,15 @@ export function UvDecalEditor({
   onSelectSlot,
   modelUrl,
   decalTextureUrl,
+  appliedDecals,
   draftUv,
   scale,
+  scaleX,
+  scaleY,
   rotationDeg,
   onDraftUvChange,
+  onScaleXChange,
+  onScaleYChange,
   onApply,
   onReset,
   onClearApplied,
@@ -195,15 +398,74 @@ export function UvDecalEditor({
   const canvasWrapRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<InteractionState>(null);
   const resizeStateRef = useRef<ResizeState>(null);
+  const undoStackRef = useRef<DraftSnapshot[]>([]);
   const [panelSize, setPanelSize] = useState<PanelSize>(() => clampPanelSize(DEFAULT_PANEL_SIZE));
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [viewport, setViewport] = useState<ViewportState>(DEFAULT_VIEWPORT);
   const [loadedMesh, setLoadedMesh] = useState<LoadedUvMesh | null>(null);
-  const [decalImage, setDecalImage] = useState<HTMLImageElement | null>(null);
+  const [decalImages, setDecalImages] = useState<Record<string, HTMLImageElement>>({});
   const [isPanning, setIsPanning] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [undoDepth, setUndoDepth] = useState(0);
 
   const activeSlot = selectedSlot || slotOptions[0]?.id || null;
+  const activeAppliedDecals = useMemo(
+    () => appliedDecals.filter((entry) => entry.meshName === activeSlot),
+    [activeSlot, appliedDecals]
+  );
+  const draftImage = decalTextureUrl ? decalImages[decalTextureUrl] || null : null;
+  const uniqueTextureUrls = useMemo(() => {
+    const urls = new Set<string>();
+    if (decalTextureUrl) {
+      urls.add(decalTextureUrl);
+    }
+    for (const decal of activeAppliedDecals) {
+      urls.add(decal.textureUrl);
+    }
+    return Array.from(urls);
+  }, [activeAppliedDecals, decalTextureUrl]);
+
+  const pushUndoSnapshot = () => {
+    undoStackRef.current.push({
+      uv: [draftUv[0], draftUv[1]],
+      scaleX,
+      scaleY,
+    });
+    setUndoDepth(undoStackRef.current.length);
+  };
+
+  const applySnapshot = (snapshot: DraftSnapshot) => {
+    onDraftUvChange(snapshot.uv);
+    onScaleXChange(snapshot.scaleX);
+    onScaleYChange(snapshot.scaleY);
+  };
+
+  const draftScreenState = useMemo(() => {
+    if (!draftImage || canvasSize.width <= 0 || canvasSize.height <= 0) {
+      return null;
+    }
+
+    const center = uvToScreen(draftUv, canvasSize, viewport);
+    const { viewSize } = getCanvasMetrics(canvasSize, viewport);
+    const baseWidth = Math.max(MIN_SCREEN_SIZE, viewSize * scale);
+    const aspect =
+      (draftImage.naturalWidth || draftImage.width || 1) /
+      Math.max(1, draftImage.naturalHeight || draftImage.height || 1);
+    const baseHeight = Math.max(MIN_SCREEN_SIZE, baseWidth / Math.max(0.1, aspect));
+    const width = Math.max(MIN_SCREEN_SIZE, baseWidth * Math.max(MIN_SCALE_AXIS, scaleX));
+    const height = Math.max(MIN_SCREEN_SIZE, baseHeight * Math.max(MIN_SCALE_AXIS, scaleY));
+    const rotationRad = rotationDegToRad(rotationDeg);
+
+    return {
+      center,
+      baseWidth,
+      baseHeight,
+      width,
+      height,
+      rotationRad,
+      handlePositions: getHandlePositions(center, width, height, rotationRad),
+    };
+  }, [canvasSize, draftImage, draftUv, rotationDeg, scale, scaleX, scaleY, viewport]);
 
   useEffect(() => {
     if (!modelUrl || !activeSlot) {
@@ -245,25 +507,42 @@ export function UvDecalEditor({
   }, [activeSlot, modelUrl]);
 
   useEffect(() => {
-    if (!decalTextureUrl) {
-      setDecalImage(null);
+    let cancelled = false;
+    const missingUrls = uniqueTextureUrls.filter((url) => !decalImages[url]);
+    if (!missingUrls.length) {
       return;
     }
 
-    let cancelled = false;
-    const image = new Image();
-    image.decoding = "async";
-    image.onload = () => {
-      if (!cancelled) {
-        setDecalImage(image);
+    (async () => {
+      const loadedPairs = await Promise.all(
+        missingUrls.map(async (url) => {
+          try {
+            return [url, await loadImage(url)] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      if (cancelled) {
+        return;
       }
-    };
-    image.src = decalTextureUrl;
+
+      setDecalImages((current) => {
+        const next = { ...current };
+        for (const pair of loadedPairs) {
+          if (pair) {
+            next[pair[0]] = pair[1];
+          }
+        }
+        return next;
+      });
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [decalTextureUrl]);
+  }, [decalImages, uniqueTextureUrls]);
 
   useEffect(() => {
     const bounds = clampPanelSize(panelSize);
@@ -297,9 +576,7 @@ export function UvDecalEditor({
       const height = Math.max(1, Math.round(nextEntry.contentRect.height));
 
       setCanvasSize((current) =>
-        current.width === width && current.height === height
-          ? current
-          : { width, height }
+        current.width === width && current.height === height ? current : { width, height }
       );
     });
 
@@ -356,9 +633,7 @@ export function UvDecalEditor({
 
     for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += 1) {
       const readIndex = (vertexOffset: number) =>
-        indexAttribute
-          ? indexAttribute.getX(triangleIndex * 3 + vertexOffset)
-          : triangleIndex * 3 + vertexOffset;
+        indexAttribute ? indexAttribute.getX(triangleIndex * 3 + vertexOffset) : triangleIndex * 3 + vertexOffset;
 
       const a = readIndex(0);
       const b = readIndex(1);
@@ -380,24 +655,53 @@ export function UvDecalEditor({
     context.lineWidth = 1;
     context.strokeRect(originX, originY, viewSize, viewSize);
 
-    if (decalImage) {
-      const center = uvToScreen(draftUv, canvasSize, viewport);
-      const width = Math.max(16, viewSize * scale);
-      const aspect =
-        (decalImage.naturalWidth || decalImage.width) /
-        Math.max(1, decalImage.naturalHeight || decalImage.height);
-      const height = width / Math.max(0.1, aspect);
+    for (const appliedDecal of activeAppliedDecals) {
+      const image = decalImages[appliedDecal.textureUrl];
+      if (!image) {
+        continue;
+      }
 
-      context.save();
-      context.translate(center.x, center.y);
-      context.rotate((-rotationDeg * Math.PI) / 180);
-      context.drawImage(decalImage, -width / 2, -height / 2, width, height);
-      context.strokeStyle = "rgba(0, 217, 232, 0.92)";
-      context.lineWidth = 2;
-      context.strokeRect(-width / 2, -height / 2, width, height);
-      context.restore();
+      const center = uvToScreen(appliedDecal.uv, canvasSize, viewport);
+      const baseWidth = Math.max(MIN_SCREEN_SIZE, viewSize * appliedDecal.scale);
+      const aspect =
+        (image.naturalWidth || image.width || 1) /
+        Math.max(1, image.naturalHeight || image.height || 1);
+      const baseHeight = Math.max(MIN_SCREEN_SIZE, baseWidth / Math.max(0.1, aspect));
+      const width = Math.max(MIN_SCREEN_SIZE, baseWidth * Math.max(MIN_SCALE_AXIS, appliedDecal.scaleX));
+      const height = Math.max(MIN_SCREEN_SIZE, baseHeight * Math.max(MIN_SCALE_AXIS, appliedDecal.scaleY));
+
+      drawDecal({
+        context,
+        image,
+        center,
+        width,
+        height,
+        rotationDeg: appliedDecal.rotationDeg,
+      });
     }
-  }, [canvasSize, decalImage, draftUv, loadedMesh, rotationDeg, scale, viewport]);
+
+    if (draftImage && draftScreenState) {
+      drawDecal({
+        context,
+        image: draftImage,
+        center: draftScreenState.center,
+        width: draftScreenState.width,
+        height: draftScreenState.height,
+        rotationDeg,
+        strokeStyle: "rgba(0, 217, 232, 0.92)",
+        drawHandles: true,
+      });
+    }
+  }, [
+    activeAppliedDecals,
+    canvasSize,
+    decalImages,
+    draftImage,
+    draftScreenState,
+    loadedMesh,
+    rotationDeg,
+    viewport,
+  ]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -421,11 +725,49 @@ export function UvDecalEditor({
     }
 
     const rect = canvas.getBoundingClientRect();
-    const uv = screenToUv(event.clientX - rect.left, event.clientY - rect.top, canvasSize, viewport);
-    onDraftUvChange([clamp01(uv.u), clamp01(uv.v)]);
+    const pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const nextUv = screenToUv(pointer.x, pointer.y, canvasSize, viewport);
+
+    if (draftImage && draftScreenState) {
+      for (const handle of draftScreenState.handlePositions) {
+        const distance = Math.hypot(pointer.x - handle.point.x, pointer.y - handle.point.y);
+        if (distance <= HANDLE_HIT_RADIUS) {
+          pushUndoSnapshot();
+          interactionRef.current = {
+            mode: "resize",
+            pointerId: event.pointerId,
+            handle: handle.handle,
+            startCenter: draftScreenState.center,
+            startWidth: draftScreenState.width,
+            startHeight: draftScreenState.height,
+            baseWidth: draftScreenState.baseWidth,
+            baseHeight: draftScreenState.baseHeight,
+            rotationRad: draftScreenState.rotationRad,
+          };
+          return;
+        }
+      }
+
+      const localPointer = toLocalPoint(pointer, draftScreenState.center, draftScreenState.rotationRad);
+      if (isInsideRect(localPointer, draftScreenState.width, draftScreenState.height)) {
+        pushUndoSnapshot();
+        interactionRef.current = {
+          mode: "move",
+          pointerId: event.pointerId,
+          offsetU: draftUv[0] - nextUv.u,
+          offsetV: draftUv[1] - nextUv.v,
+        };
+        return;
+      }
+    }
+
+    pushUndoSnapshot();
+    onDraftUvChange([clamp01(nextUv.u), clamp01(nextUv.v)]);
     interactionRef.current = {
-      mode: "decal",
+      mode: "move",
       pointerId: event.pointerId,
+      offsetU: 0,
+      offsetV: 0,
     };
   };
 
@@ -446,8 +788,50 @@ export function UvDecalEditor({
     }
 
     const rect = canvas.getBoundingClientRect();
-    const uv = screenToUv(event.clientX - rect.left, event.clientY - rect.top, canvasSize, viewport);
-    onDraftUvChange([clamp01(uv.u), clamp01(uv.v)]);
+    const pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+
+    if (interaction.mode === "move") {
+      const uv = screenToUv(pointer.x, pointer.y, canvasSize, viewport);
+      onDraftUvChange([
+        clamp01(uv.u + interaction.offsetU),
+        clamp01(uv.v + interaction.offsetV),
+      ]);
+      return;
+    }
+
+    const localPointer = toLocalPoint(pointer, interaction.startCenter, interaction.rotationRad);
+    const minWidth = Math.max(MIN_SCREEN_SIZE, interaction.baseWidth * MIN_SCALE_AXIS);
+    const minHeight = Math.max(MIN_SCREEN_SIZE, interaction.baseHeight * MIN_SCALE_AXIS);
+    let left = -interaction.startWidth * 0.5;
+    let right = interaction.startWidth * 0.5;
+    let top = -interaction.startHeight * 0.5;
+    let bottom = interaction.startHeight * 0.5;
+
+    if (interaction.handle.includes("e")) {
+      right = Math.max(left + minWidth, localPointer.x);
+    }
+    if (interaction.handle.includes("w")) {
+      left = Math.min(right - minWidth, localPointer.x);
+    }
+    if (interaction.handle.includes("s")) {
+      bottom = Math.max(top + minHeight, localPointer.y);
+    }
+    if (interaction.handle.includes("n")) {
+      top = Math.min(bottom - minHeight, localPointer.y);
+    }
+
+    const nextWidth = Math.max(minWidth, right - left);
+    const nextHeight = Math.max(minHeight, bottom - top);
+    const nextCenterLocal = {
+      x: (left + right) * 0.5,
+      y: (top + bottom) * 0.5,
+    };
+    const nextCenterScreen = toScreenPoint(nextCenterLocal, interaction.startCenter, interaction.rotationRad);
+    const nextUv = screenToUv(nextCenterScreen.x, nextCenterScreen.y, canvasSize, viewport);
+
+    onDraftUvChange([clamp01(nextUv.u), clamp01(nextUv.v)]);
+    onScaleXChange(clamp(nextWidth / Math.max(1, interaction.baseWidth), MIN_SCALE_AXIS, MAX_SCALE_AXIS));
+    onScaleYChange(clamp(nextHeight / Math.max(1, interaction.baseHeight), MIN_SCALE_AXIS, MAX_SCALE_AXIS));
   };
 
   const finishCanvasInteraction = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -471,19 +855,16 @@ export function UvDecalEditor({
     const rect = canvas.getBoundingClientRect();
     const pointerX = event.clientX - rect.left;
     const pointerY = event.clientY - rect.top;
-    const uvBeforeZoom = screenToUv(pointerX, pointerY, canvasSize, viewport);
     const zoomFactor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-    const nextZoom = clamp(viewport.zoom * zoomFactor, MIN_ZOOM, MAX_ZOOM);
-    const nextViewSize = Math.min(canvasSize.width, canvasSize.height) * nextZoom;
-    const screenV = 1 - uvBeforeZoom.v;
-    const nextOriginX = pointerX - uvBeforeZoom.u * nextViewSize;
-    const nextOriginY = pointerY - screenV * nextViewSize;
-
-    setViewport({
-      zoom: nextZoom,
-      panX: nextOriginX + nextViewSize * 0.5 - canvasSize.width * 0.5,
-      panY: nextOriginY + nextViewSize * 0.5 - canvasSize.height * 0.5,
-    });
+    setViewport((current) =>
+      getZoomedViewport({
+        viewport: current,
+        size: canvasSize,
+        pointerX,
+        pointerY,
+        zoomFactor,
+      })
+    );
   };
 
   const handleResizeStart = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -523,6 +904,16 @@ export function UvDecalEditor({
     setIsResizing(false);
   };
 
+  const handleUndo = () => {
+    const snapshot = undoStackRef.current.pop();
+    if (!snapshot) {
+      return;
+    }
+
+    setUndoDepth(undoStackRef.current.length);
+    applySnapshot(snapshot);
+  };
+
   const hasCanvas = Boolean(activeSlot && modelUrl && loadedMesh);
   const slotButtons = useMemo(() => slotOptions, [slotOptions]);
 
@@ -557,6 +948,16 @@ export function UvDecalEditor({
       <div className="uv-editor__actions">
         <button
           type="button"
+          className="texture-modal-btn uv-editor__action-btn uv-editor__action-btn--symbol"
+          onClick={handleUndo}
+          disabled={!undoDepth}
+          aria-label={copy.uvUndoLabel}
+          title={copy.uvUndoLabel}
+        >
+          &larr;
+        </button>
+        <button
+          type="button"
           className="texture-modal-btn uv-editor__action-btn"
           onClick={onApply}
           disabled={!decalTextureUrl || !hasCanvas || !activeSlot}
@@ -567,6 +968,7 @@ export function UvDecalEditor({
           type="button"
           className="texture-modal-btn uv-editor__action-btn"
           onClick={() => {
+            pushUndoSnapshot();
             setViewport(DEFAULT_VIEWPORT);
             onReset();
           }}
