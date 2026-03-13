@@ -42,6 +42,16 @@ export function AssetSidebar({
   localItemsByAsset,
   onSelectAsset,
 }: AssetSidebarProps) {
+  const isFootwearType = activeType === "footwear";
+  const isBeardType = activeType === "beard";
+  const assetGridClassName = [
+    "asset-grid",
+    isFootwearType ? "asset-grid--footwear" : "",
+    isBeardType ? "asset-grid--beard" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <aside className="asset-panel">
       <div className="asset-list-panel">
@@ -98,7 +108,7 @@ export function AssetSidebar({
           ))}
         </div>
 
-        <div className={`asset-grid${activeType === "footwear" ? " asset-grid--footwear" : ""}`}>
+        <div className={assetGridClassName}>
           <button
             type="button"
             className={`asset-card asset-card--clear${selectedAssetId ? "" : " asset-card--active"}`}
@@ -126,7 +136,13 @@ export function AssetSidebar({
                 title={`${asset.name} (${id})`}
               >
                 <span
-                  className={`asset-thumb-wrap${activeType === "footwear" ? " asset-thumb-wrap--footwear" : ""}`}
+                  className={[
+                    "asset-thumb-wrap",
+                    isFootwearType ? "asset-thumb-wrap--footwear" : "",
+                    isBeardType ? "asset-thumb-wrap--beard" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                 >
                   {imageSrc ? <img src={imageSrc} alt={asset.name} loading="lazy" /> : null}
                 </span>

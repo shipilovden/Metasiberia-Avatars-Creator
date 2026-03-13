@@ -809,6 +809,10 @@ body {
   min-height: 92px;
 }
 
+.asset-grid--beard .asset-card {
+  min-height: 92px;
+}
+
 .asset-card--active {
   border-color: #00d9e8;
   box-shadow: 0 0 0 1px rgba(0, 217, 232, 0.42) inset;
@@ -837,8 +841,13 @@ body {
 }
 
 .asset-thumb-wrap--footwear img {
-  transform: translateY(-26%) scale(1.22);
-  transform-origin: center 58%;
+  transform: translateY(-24%) scale(1.08);
+  transform-origin: center 60%;
+}
+
+.asset-thumb-wrap--beard img {
+  transform: translateY(-18%) scale(1.6);
+  transform-origin: center 56%;
 }
 
 .asset-thumb-wrap--clear {
