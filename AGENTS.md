@@ -55,6 +55,17 @@
 - On gender switch, incompatible selected assets are cleared.
 - On preset switch, `beard` and `facewear` are reset to avoid head-slot conflicts between different base meshes.
 
+## Export Rules
+- Keep the Ready Player Me export pipeline as the base export path. Do not replace it with a full local `GLTFExporter` scene export: that previously broke skeleton / skinning compatibility in Metasiberia.
+- Local preview and exported RPM preset `Wolf3D_Outfit_Top` were verified to use the same node and the same `TEXCOORD_0` UV data for `male/preset-1`. The main mismatch was not missing UVs.
+- The export post-process in [src/App.tsx](./src/App.tsx) depends on image baking for replacement textures and decals. If you touch this logic, preserve the current `flipY = false` behavior used for the temporary transform texture in `drawReplacementPattern()`. Leaving Three.js default `flipY = true` causes mirrored / shifted placement compared to the editor.
+- When modifying exported textures, do not overwrite a shared material/image globally. Work on cloned target materials/textures only, otherwise the texture leaks onto collar / trim / unrelated clothing parts.
+- If export stops matching the editor again, first compare:
+  1. local base preset GLB in `public/local-assets/base/...`
+  2. exported RPM GLB for the same preset/template
+  3. `Wolf3D_Outfit_Top` node, primitive material, and `TEXCOORD_0`
+  Do this before changing transform math.
+
 ## Verification Status
 - Checked on `2026-03-11`.
 - `src/data/generated/local-library-manifest.json` resolves to real files for both libraries:
