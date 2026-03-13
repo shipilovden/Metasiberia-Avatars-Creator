@@ -837,8 +837,8 @@ body {
 }
 
 .asset-thumb-wrap--footwear img {
-  transform: translateY(-18%) scale(1.45);
-  transform-origin: center center;
+  transform: translateY(-26%) scale(1.22);
+  transform-origin: center 58%;
 }
 
 .asset-thumb-wrap--clear {
