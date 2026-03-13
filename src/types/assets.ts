@@ -8,7 +8,8 @@ export type CoreAssetType =
   | "glasses"
   | "headwear"
   | "beard"
-  | "facewear";
+  | "facewear"
+  | "facemask";
 
 export interface AssetRecord {
   id: string;

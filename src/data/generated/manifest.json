@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-03-11T12:25:29.159Z",
-  "datasetCollectedAt": "2026-03-11T12:17:22.716Z",
-  "totalAssets": 622,
+  "generatedAt": "2026-03-13T10:07:31.366Z",
+  "datasetCollectedAt": "2026-03-12T02:23:42.917Z",
+  "totalAssets": 649,
   "source": {
     "subdomain": "demo",
     "appId": "6421563c21169e32c89017a0",
-    "userId": "69b15d4b373147d561c3b826",
+    "userId": "69b223a7a491b44fc4c491c0",
     "bodyType": [
       "generic",
       "fullbody"
@@ -106,6 +106,12 @@
       "label": "Facewear",
       "count": 12,
       "file": "./types/facewear.json"
+    },
+    {
+      "id": "facemask",
+      "label": "Face Mask",
+      "count": 27,
+      "file": "./types/facemask.json"
     }
   ],
   "groups": [
@@ -155,9 +161,10 @@
       "types": [
         "glasses",
         "headwear",
-        "facewear"
+        "facewear",
+        "facemask"
       ],
-      "count": 119,
+      "count": 146,
       "file": "./groups/accessories.json"
     }
   ]

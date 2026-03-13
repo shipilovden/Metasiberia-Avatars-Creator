@@ -14,7 +14,8 @@
     { "id": "glasses", "label": "Glasses" },
     { "id": "headwear", "label": "Headwear" },
     { "id": "beard", "label": "Beard" },
-    { "id": "facewear", "label": "Facewear" }
+    { "id": "facewear", "label": "Facewear" },
+    { "id": "facemask", "label": "Face Mask" }
   ],
   "groups": [
     {
@@ -39,7 +40,7 @@
       "id": "accessories",
       "label": "Accessories",
       "description": "Wearables and face accessories",
-      "types": ["glasses", "headwear", "facewear"]
+      "types": ["glasses", "headwear", "facewear", "facemask"]
     }
   ]
 }

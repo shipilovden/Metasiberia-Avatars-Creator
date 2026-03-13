@@ -44,6 +44,7 @@ const TYPE_TO_AVATAR_ASSET_KEY = {
   headwear: "headwear",
   beard: "beardStyle",
   facewear: "facewear",
+  facemask: "faceMask",
 };
 
 const LEGACY_DEFAULT_BASE = path.join(OUTPUT_BASE_ROOT, "default.glb");
@@ -303,6 +304,11 @@ const applyAssetToAvatarAssets = ({ type, assetId, baseAssets }) => {
 
   if (type === "facewear") {
     next.facewear = String(assetId);
+    return next;
+  }
+
+  if (type === "facemask") {
+    next.faceMask = String(assetId);
     return next;
   }
 
