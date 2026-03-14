@@ -463,6 +463,7 @@ const main = async () => {
   const wantedIdsRaw = readArg("--id", "").trim();
   const limitRaw = readArg("--limit", "");
   const force = hasFlag("--force");
+  const presetsOnly = hasFlag("--presets-only");
   const skipIcons = hasFlag("--skip-icons");
   const genderArg = readArg("--gender", "male,female");
 
@@ -520,6 +521,7 @@ const main = async () => {
   console.log(`Catalog assets: ${sourceAssets.length}`);
   console.log(`Requested genders: ${genders.join(", ")}`);
   console.log(`Type filter: ${wantedType || "all"}`);
+  console.log(`Presets only: ${presetsOnly ? "yes" : "no"}`);
   console.log(`Output root: ${OUTPUT_ROOT}`);
 
   const { token, userId } = await createAnonymousUser(appName);
@@ -551,6 +553,8 @@ const main = async () => {
     const presetManifestItems = [];
 
     for (const preset of presetTemplates) {
+      const previousPresetEntry =
+        nextPresets[gender]?.items?.find((entry) => entry.id === preset.id) || null;
       const previewExt = preset.previewSourceUrl
         ? parseExtensionFromUrl(preset.previewSourceUrl)
         : ".png";
@@ -560,17 +564,22 @@ const main = async () => {
         ext: previewExt,
       });
       const basePath = getPresetBasePath({ gender, presetId: preset.id });
+      const shouldRefreshPresetFiles =
+        force ||
+        !previousPresetEntry ||
+        previousPresetEntry.templateId !== preset.templateId ||
+        (previousPresetEntry.previewSourceUrl || null) !== (preset.previewSourceUrl || null);
 
-      if (preset.previewSourceUrl) {
+      if (preset.previewSourceUrl && (shouldRefreshPresetFiles || !(await fileExists(previewPath)))) {
         await downloadBinary({
           url: preset.previewSourceUrl,
           targetPath: previewPath,
-          force,
+          force: shouldRefreshPresetFiles,
         });
       }
 
       if (preset.id === "preset-1" && gender === "male") {
-        if (force || !(await fileExists(basePath))) {
+        if (shouldRefreshPresetFiles || !(await fileExists(basePath))) {
           if (!force && (await fileExists(LEGACY_DEFAULT_BASE))) {
             await ensureDir(path.dirname(basePath));
             await copyFile(LEGACY_DEFAULT_BASE, basePath);
@@ -582,7 +591,7 @@ const main = async () => {
             });
           }
         }
-      } else if (force || !(await fileExists(basePath))) {
+      } else if (shouldRefreshPresetFiles || !(await fileExists(basePath))) {
         if (preset.id === "preset-1") {
           await savePresetBase({
             session: defaultSession,
@@ -609,6 +618,7 @@ const main = async () => {
         label: preset.label,
         gender,
         templateId: preset.templateId,
+        previewSourceUrl: preset.previewSourceUrl || null,
         baseModelUrl: getPresetBaseUrl({ gender, presetId: preset.id }),
         previewUrl: preset.previewSourceUrl
           ? getPresetPreviewUrl({
@@ -627,6 +637,10 @@ const main = async () => {
   }
 
   for (const gender of genders) {
+    if (presetsOnly) {
+      continue;
+    }
+
     const filteredAssets = sourceAssets
       .filter((asset) => asset.gender === "neutral" || asset.gender === gender)
       .filter((asset) => !wantedType || asset.type === wantedType)

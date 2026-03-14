@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-12T02:26:59.972Z",
+  "generatedAt": "2026-03-14T06:45:34.403Z",
   "sourceCollectedAt": "2026-03-12T02:23:42.917Z",
   "appName": "demo",
   "totalCatalogAssets": 649,
@@ -14253,6 +14253,7 @@
           "label": "01",
           "gender": "male",
           "templateId": "645cd1eff23d0562d3f9d290",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/white-male-1.png",
           "baseModelUrl": "/local-assets/base/male/preset-1.glb",
           "previewUrl": "/local-assets/presets/male/preset-1.png"
         },
@@ -14261,6 +14262,7 @@
           "label": "02",
           "gender": "male",
           "templateId": "645cd172f23d0562d3f9d284",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/black-male-1.png",
           "baseModelUrl": "/local-assets/base/male/preset-2.glb",
           "previewUrl": "/local-assets/presets/male/preset-2.png"
         },
@@ -14269,6 +14271,7 @@
           "label": "03",
           "gender": "male",
           "templateId": "645cd123f23d0562d3f9d27e",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/asian-male-1.png",
           "baseModelUrl": "/local-assets/base/male/preset-3.glb",
           "previewUrl": "/local-assets/presets/male/preset-3.png"
         },
@@ -14277,6 +14280,7 @@
           "label": "04",
           "gender": "male",
           "templateId": "645cd1b2f23d0562d3f9d28a",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/indian-male-1.png",
           "baseModelUrl": "/local-assets/base/male/preset-4.glb",
           "previewUrl": "/local-assets/presets/male/preset-4.png"
         },
@@ -14285,6 +14289,7 @@
           "label": "05",
           "gender": "male",
           "templateId": "645cd1f6f23d0562d3f9d291",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/white-male-2.png",
           "baseModelUrl": "/local-assets/base/male/preset-5.glb",
           "previewUrl": "/local-assets/presets/male/preset-5.png"
         },
@@ -14293,6 +14298,7 @@
           "label": "06",
           "gender": "male",
           "templateId": "645cd180f23d0562d3f9d285",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/black-male-2.png",
           "baseModelUrl": "/local-assets/base/male/preset-6.glb",
           "previewUrl": "/local-assets/presets/male/preset-6.png"
         },
@@ -14301,6 +14307,7 @@
           "label": "07",
           "gender": "male",
           "templateId": "645cd12cf23d0562d3f9d27f",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/asian-male-2.png",
           "baseModelUrl": "/local-assets/base/male/preset-7.glb",
           "previewUrl": "/local-assets/presets/male/preset-7.png"
         },
@@ -14309,6 +14316,7 @@
           "label": "08",
           "gender": "male",
           "templateId": "645cd1bdf23d0562d3f9d28b",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/indian-male-2.png",
           "baseModelUrl": "/local-assets/base/male/preset-8.glb",
           "previewUrl": "/local-assets/presets/male/preset-8.png"
         },
@@ -14317,6 +14325,7 @@
           "label": "09",
           "gender": "male",
           "templateId": "645cd1fdf23d0562d3f9d292",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/white-male-3.png",
           "baseModelUrl": "/local-assets/base/male/preset-9.glb",
           "previewUrl": "/local-assets/presets/male/preset-9.png"
         },
@@ -14325,6 +14334,7 @@
           "label": "10",
           "gender": "male",
           "templateId": "645cd186f23d0562d3f9d286",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/black-male-3.png",
           "baseModelUrl": "/local-assets/base/male/preset-10.glb",
           "previewUrl": "/local-assets/presets/male/preset-10.png"
         },
@@ -14333,6 +14343,7 @@
           "label": "11",
           "gender": "male",
           "templateId": "645cd134f23d0562d3f9d280",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/asian-male-3.png",
           "baseModelUrl": "/local-assets/base/male/preset-11.glb",
           "previewUrl": "/local-assets/presets/male/preset-11.png"
         },
@@ -14341,6 +14352,7 @@
           "label": "12",
           "gender": "male",
           "templateId": "645cd1c5f23d0562d3f9d28c",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/indian-male-3.png",
           "baseModelUrl": "/local-assets/base/male/preset-12.glb",
           "previewUrl": "/local-assets/presets/male/preset-12.png"
         },
@@ -14349,6 +14361,7 @@
           "label": "13",
           "gender": "male",
           "templateId": "657c248df6cae4b73974b499",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-asian-male-1.png",
           "baseModelUrl": "/local-assets/base/male/preset-13.glb",
           "previewUrl": "/local-assets/presets/male/preset-13.png"
         },
@@ -14357,6 +14370,7 @@
           "label": "14",
           "gender": "male",
           "templateId": "657c248df6cae4b73974b49a",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-black-male-1.png",
           "baseModelUrl": "/local-assets/base/male/preset-14.glb",
           "previewUrl": "/local-assets/presets/male/preset-14.png"
         },
@@ -14365,6 +14379,7 @@
           "label": "15",
           "gender": "male",
           "templateId": "657c248df6cae4b73974b49b",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-asian-male-2.png",
           "baseModelUrl": "/local-assets/base/male/preset-15.glb",
           "previewUrl": "/local-assets/presets/male/preset-15.png"
         },
@@ -14373,6 +14388,7 @@
           "label": "16",
           "gender": "male",
           "templateId": "657c248df6cae4b73974b49f",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-black-male-2.png",
           "baseModelUrl": "/local-assets/base/male/preset-16.glb",
           "previewUrl": "/local-assets/presets/male/preset-16.png"
         },
@@ -14381,6 +14397,7 @@
           "label": "17",
           "gender": "male",
           "templateId": "65bf79dafdc09570c48952ac",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-white-male-1.png",
           "baseModelUrl": "/local-assets/base/male/preset-17.glb",
           "previewUrl": "/local-assets/presets/male/preset-17.png"
         },
@@ -14389,6 +14406,7 @@
           "label": "18",
           "gender": "male",
           "templateId": "65bf79dafdc09570c48952ae",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-indian-male-1.png",
           "baseModelUrl": "/local-assets/base/male/preset-18.glb",
           "previewUrl": "/local-assets/presets/male/preset-18.png"
         },
@@ -14397,6 +14415,7 @@
           "label": "19",
           "gender": "male",
           "templateId": "65bf79dafdc09570c48952b0",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-other-male-1.png",
           "baseModelUrl": "/local-assets/base/male/preset-19.glb",
           "previewUrl": "/local-assets/presets/male/preset-19.png"
         },
@@ -14405,6 +14424,7 @@
           "label": "20",
           "gender": "male",
           "templateId": "65bf79dafdc09570c48952b1",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-white-male-2.png",
           "baseModelUrl": "/local-assets/base/male/preset-20.glb",
           "previewUrl": "/local-assets/presets/male/preset-20.png"
         }
@@ -14418,6 +14438,7 @@
           "label": "01",
           "gender": "female",
           "templateId": "645cd1cef23d0562d3f9d28d",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/white-female-1.png",
           "baseModelUrl": "/local-assets/base/female/preset-1.glb",
           "previewUrl": "/local-assets/presets/female/preset-1.png"
         },
@@ -14426,6 +14447,7 @@
           "label": "02",
           "gender": "female",
           "templateId": "645cd13ff23d0562d3f9d281",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/black-female-1.png",
           "baseModelUrl": "/local-assets/base/female/preset-2.glb",
           "previewUrl": "/local-assets/presets/female/preset-2.png"
         },
@@ -14434,6 +14456,7 @@
           "label": "03",
           "gender": "female",
           "templateId": "645ccc4df23d0562d3f9d274",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/asian-female-1.png",
           "baseModelUrl": "/local-assets/base/female/preset-3.glb",
           "previewUrl": "/local-assets/presets/female/preset-3.png"
         },
@@ -14442,6 +14465,7 @@
           "label": "04",
           "gender": "female",
           "templateId": "645cd18ef23d0562d3f9d287",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/indian-female-1.png",
           "baseModelUrl": "/local-assets/base/female/preset-4.glb",
           "previewUrl": "/local-assets/presets/female/preset-4.png"
         },
@@ -14450,6 +14474,7 @@
           "label": "05",
           "gender": "female",
           "templateId": "645cd1d5f23d0562d3f9d28e",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/white-female-2.png",
           "baseModelUrl": "/local-assets/base/female/preset-5.glb",
           "previewUrl": "/local-assets/presets/female/preset-5.png"
         },
@@ -14458,6 +14483,7 @@
           "label": "06",
           "gender": "female",
           "templateId": "645cd14ff23d0562d3f9d282",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/black-female-2.png",
           "baseModelUrl": "/local-assets/base/female/preset-6.glb",
           "previewUrl": "/local-assets/presets/female/preset-6.png"
         },
@@ -14466,6 +14492,7 @@
           "label": "07",
           "gender": "female",
           "templateId": "645cd00bf23d0562d3f9d27c",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/asian-female-2.png",
           "baseModelUrl": "/local-assets/base/female/preset-7.glb",
           "previewUrl": "/local-assets/presets/female/preset-7.png"
         },
@@ -14474,6 +14501,7 @@
           "label": "08",
           "gender": "female",
           "templateId": "645cd19af23d0562d3f9d288",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/indian-female-2.png",
           "baseModelUrl": "/local-assets/base/female/preset-8.glb",
           "previewUrl": "/local-assets/presets/female/preset-8.png"
         },
@@ -14482,6 +14510,7 @@
           "label": "09",
           "gender": "female",
           "templateId": "645cd1e9f23d0562d3f9d28f",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/white-female-3.png",
           "baseModelUrl": "/local-assets/base/female/preset-9.glb",
           "previewUrl": "/local-assets/presets/female/preset-9.png"
         },
@@ -14490,6 +14519,7 @@
           "label": "10",
           "gender": "female",
           "templateId": "645cd15df23d0562d3f9d283",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/black-female-3.png",
           "baseModelUrl": "/local-assets/base/female/preset-10.glb",
           "previewUrl": "/local-assets/presets/female/preset-10.png"
         },
@@ -14498,6 +14528,7 @@
           "label": "11",
           "gender": "female",
           "templateId": "645cd118f23d0562d3f9d27d",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/asian-female-3.png",
           "baseModelUrl": "/local-assets/base/female/preset-11.glb",
           "previewUrl": "/local-assets/presets/female/preset-11.png"
         },
@@ -14506,6 +14537,7 @@
           "label": "12",
           "gender": "female",
           "templateId": "645cd1a3f23d0562d3f9d289",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/indian-female-3.png",
           "baseModelUrl": "/local-assets/base/female/preset-12.glb",
           "previewUrl": "/local-assets/presets/female/preset-12.png"
         },
@@ -14514,6 +14546,7 @@
           "label": "13",
           "gender": "female",
           "templateId": "657c248df6cae4b73974b497",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-indian-female-1.png",
           "baseModelUrl": "/local-assets/base/female/preset-13.glb",
           "previewUrl": "/local-assets/presets/female/preset-13.png"
         },
@@ -14522,6 +14555,7 @@
           "label": "14",
           "gender": "female",
           "templateId": "657c248df6cae4b73974b498",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-indian-female-2.png",
           "baseModelUrl": "/local-assets/base/female/preset-14.glb",
           "previewUrl": "/local-assets/presets/female/preset-14.png"
         },
@@ -14530,6 +14564,7 @@
           "label": "15",
           "gender": "female",
           "templateId": "657c248df6cae4b73974b49c",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-asian-female-1.png",
           "baseModelUrl": "/local-assets/base/female/preset-15.glb",
           "previewUrl": "/local-assets/presets/female/preset-15.png"
         },
@@ -14538,6 +14573,7 @@
           "label": "16",
           "gender": "female",
           "templateId": "657c248df6cae4b73974b49d",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-white-female-1.png",
           "baseModelUrl": "/local-assets/base/female/preset-16.glb",
           "previewUrl": "/local-assets/presets/female/preset-16.png"
         },
@@ -14546,6 +14582,7 @@
           "label": "17",
           "gender": "female",
           "templateId": "657c248df6cae4b73974b49e",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-asian-female-2.png",
           "baseModelUrl": "/local-assets/base/female/preset-17.glb",
           "previewUrl": "/local-assets/presets/female/preset-17.png"
         },
@@ -14554,6 +14591,7 @@
           "label": "18",
           "gender": "female",
           "templateId": "65bf79dafdc09570c48952ab",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-asian-female-3.png",
           "baseModelUrl": "/local-assets/base/female/preset-18.glb",
           "previewUrl": "/local-assets/presets/female/preset-18.png"
         },
@@ -14562,6 +14600,7 @@
           "label": "19",
           "gender": "female",
           "templateId": "65bf79dafdc09570c48952ad",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-indian-female-3.png",
           "baseModelUrl": "/local-assets/base/female/preset-19.glb",
           "previewUrl": "/local-assets/presets/female/preset-19.png"
         },
@@ -14570,6 +14609,7 @@
           "label": "20",
           "gender": "female",
           "templateId": "65bf79dafdc09570c48952af",
+          "previewSourceUrl": "https://readyplayerme-avatars.s3.amazonaws.com/avatar-template-images/onboarding-asian-female-4.png",
           "baseModelUrl": "/local-assets/base/female/preset-20.glb",
           "previewUrl": "/local-assets/presets/female/preset-20.png"
         }
