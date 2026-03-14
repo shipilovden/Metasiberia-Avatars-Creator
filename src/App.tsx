@@ -844,6 +844,8 @@ function App() {
           replaceTextureScaleY: replaceScaleY,
           replaceTextureRotationDeg: replaceRotationDeg,
           appliedUvDecals: appliedUvOverlays,
+          baseModelUrl: selectedPreset?.baseModelUrl || null,
+          slotModelUrls: composedScene.slotModelUrls,
         });
 
         const url = URL.createObjectURL(processedBlob);

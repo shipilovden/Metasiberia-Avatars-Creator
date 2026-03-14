@@ -1,6 +1,7 @@
 import type { AppliedUvDecal, MeshSlot, SupportedType } from "./shared";
 import {
   RPM_API_BASE,
+  SLOT_NAMES,
   TYPE_TO_AVATAR_ASSET_KEY,
   getAppliedUvDecalsForMesh,
 } from "./shared";
@@ -176,6 +177,7 @@ type GlbJson = {
 };
 
 type PrimitiveTarget = {
+  meshName: string;
   meshIndex: number;
   primitiveIndex: number;
   materialIndex: number;
@@ -249,6 +251,7 @@ const collectPrimitiveTargetsForMeshes = (json: GlbJson, meshNames: readonly str
     for (const [primitiveIndex, primitive] of (mesh?.primitives || []).entries()) {
       if (primitive.material != null) {
         primitiveTargets.push({
+          meshName: node.name,
           meshIndex: node.mesh,
           primitiveIndex,
           materialIndex: primitive.material,
@@ -313,6 +316,135 @@ const extractImageBytes = ({
   };
 };
 
+type ParsedGlb = {
+  json: GlbJson;
+  binChunk: Uint8Array;
+};
+
+const normalizeMeshName = (value: string) =>
+  value.trim().replace(/\.+$/, "").replace(/\.\d+$/, "");
+
+const LOCAL_MESH_NAME_ALIASES: Partial<Record<MeshSlot, readonly string[]>> = {
+  [SLOT_NAMES.hair]: ["hair-60", "low"],
+  [SLOT_NAMES.top]: ["Mesh.009", "Mesh"],
+  [SLOT_NAMES.headwear]: ["Mesh.003", "Mesh"],
+};
+
+const resolveLocalNodeForMesh = (json: GlbJson, meshName: string) => {
+  const nodes = (json.nodes || []).filter(
+    (entry): entry is NonNullable<GlbJson["nodes"]>[number] & { name: string; mesh: number } =>
+      Boolean(entry?.name) && entry?.mesh != null
+  );
+  if (!nodes.length) {
+    return null;
+  }
+
+  const exactMatch = nodes.find((entry) => entry.name === meshName);
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const normalizedTargetName = normalizeMeshName(meshName);
+  const normalizedMatch = nodes.find(
+    (entry) => normalizeMeshName(entry.name) === normalizedTargetName
+  );
+  if (normalizedMatch) {
+    return normalizedMatch;
+  }
+
+  const slotAliases = LOCAL_MESH_NAME_ALIASES[meshName as MeshSlot] || [];
+  for (const alias of slotAliases) {
+    const aliasMatch = nodes.find(
+      (entry) =>
+        entry.name === alias || normalizeMeshName(entry.name) === normalizeMeshName(alias)
+    );
+    if (aliasMatch) {
+      return aliasMatch;
+    }
+  }
+
+  if (meshName === SLOT_NAMES.top || meshName === SLOT_NAMES.headwear) {
+    return nodes.find((entry) => normalizeMeshName(entry.name) === "Mesh") || null;
+  }
+
+  return null;
+};
+
+const parsedGlbCache = new Map<string, Promise<ParsedGlb>>();
+const localTextureImageCache = new Map<string, Promise<HTMLImageElement | null>>();
+
+const fetchAndParseGlb = async (modelUrl: string): Promise<ParsedGlb> => {
+  const existing = parsedGlbCache.get(modelUrl);
+  if (existing) {
+    return existing;
+  }
+
+  const pending = (async () => {
+    const response = await fetch(modelUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to load local GLB: ${modelUrl}`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    return parseGlb(buffer);
+  })();
+
+  parsedGlbCache.set(modelUrl, pending);
+  try {
+    return await pending;
+  } catch (error) {
+    parsedGlbCache.delete(modelUrl);
+    throw error;
+  }
+};
+
+const getLocalBaseColorImage = async ({
+  modelUrl,
+  meshName,
+  primitiveIndex,
+}: {
+  modelUrl: string;
+  meshName: string;
+  primitiveIndex: number;
+}) => {
+  const cacheKey = `${modelUrl}::${meshName}::${primitiveIndex}`;
+  const existing = localTextureImageCache.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+
+  const pending = (async () => {
+    try {
+      const { json, binChunk } = await fetchAndParseGlb(modelUrl);
+      const node = resolveLocalNodeForMesh(json, meshName);
+      if (!node || node.mesh == null) {
+        return null;
+      }
+
+      const primitive = json.meshes?.[node.mesh]?.primitives?.[primitiveIndex];
+      const materialIndex = primitive?.material;
+      const textureIndex =
+        materialIndex != null
+          ? json.materials?.[materialIndex]?.pbrMetallicRoughness?.baseColorTexture?.index
+          : undefined;
+      const imageIndex = textureIndex != null ? json.textures?.[textureIndex]?.source : undefined;
+      if (imageIndex == null) {
+        return null;
+      }
+
+      const { imageDef, bytes } = extractImageBytes({ json, binChunk, imageIndex });
+      return readFileAsImage(
+        new Blob([bytes], { type: getMimeFromImageDef(imageDef) })
+      );
+    } catch {
+      return null;
+    }
+  })();
+
+  localTextureImageCache.set(cacheKey, pending);
+  return pending;
+};
+
 const rebuildGlbWithModifiedImages = async ({
   sourceBlob,
   targetPrimitiveTargets,
@@ -323,6 +455,8 @@ const rebuildGlbWithModifiedImages = async ({
   replaceTextureScaleY,
   replaceTextureRotationDeg,
   appliedUvDecals,
+  baseModelUrl,
+  slotModelUrls,
 }: {
   sourceBlob: Blob;
   targetPrimitiveTargets: PrimitiveTarget[];
@@ -333,6 +467,8 @@ const rebuildGlbWithModifiedImages = async ({
   replaceTextureScaleY: number;
   replaceTextureRotationDeg: number;
   appliedUvDecals: readonly AppliedUvDecal[];
+  baseModelUrl: string | null;
+  slotModelUrls: Partial<Record<MeshSlot, string>>;
 }) => {
   const buffer = await sourceBlob.arrayBuffer();
   const { json, binChunk } = parseGlb(buffer);
@@ -380,6 +516,7 @@ const rebuildGlbWithModifiedImages = async ({
       : undefined,
   }));
   const clonedMaterialIndexByTarget = new Map<string, number>();
+  const sourceTargetByMaterialIndex = new Map<number, PrimitiveTarget>();
   const appliedUvDecalsByMaterialIndex = new Map<number, AppliedUvDecal[]>();
   const shouldReplaceByMaterialIndex = new Map<number, boolean>();
   const replaceMeshSet = new Set(replaceTextureMeshes);
@@ -421,14 +558,16 @@ const rebuildGlbWithModifiedImages = async ({
           : undefined,
       });
       clonedMaterialIndexByTarget.set(targetKey, materialIndex);
+      sourceTargetByMaterialIndex.set(materialIndex, target);
 
-      const meshDef = json.meshes?.[target.meshIndex];
-      const meshName = meshDef?.name || "";
       appliedUvDecalsByMaterialIndex.set(
         materialIndex,
-        getAppliedUvDecalsForMesh(appliedUvDecals, meshName)
+        getAppliedUvDecalsForMesh(appliedUvDecals, target.meshName)
       );
-      shouldReplaceByMaterialIndex.set(materialIndex, replaceMeshSet.has(meshName as MeshSlot));
+      shouldReplaceByMaterialIndex.set(
+        materialIndex,
+        replaceMeshSet.has(target.meshName as MeshSlot)
+      );
     }
 
     const primitive = json.meshes?.[target.meshIndex]?.primitives?.[target.primitiveIndex];
@@ -437,7 +576,7 @@ const rebuildGlbWithModifiedImages = async ({
     }
   }
 
-  for (const materialIndex of clonedMaterialIndexByTarget.values()) {
+  for (const [materialIndex, sourceTarget] of sourceTargetByMaterialIndex.entries()) {
     const textureInfo = materials[materialIndex]?.pbrMetallicRoughness?.baseColorTexture;
     const textureIndex = textureInfo?.index;
     const imageIndex = textureIndex != null ? textures[textureIndex]?.source : undefined;
@@ -448,9 +587,20 @@ const rebuildGlbWithModifiedImages = async ({
     const { imageDef, bytes } = extractImageBytes({ json, binChunk, imageIndex });
     const originalBlob = new Blob([bytes], { type: getMimeFromImageDef(imageDef) });
     const originalImage = await readFileAsImage(originalBlob);
+    const sourceModelUrl =
+      slotModelUrls[sourceTarget.meshName as MeshSlot] || baseModelUrl;
+    const localBaseImage =
+      sourceModelUrl
+        ? await getLocalBaseColorImage({
+            modelUrl: sourceModelUrl,
+            meshName: sourceTarget.meshName,
+            primitiveIndex: sourceTarget.primitiveIndex,
+          })
+        : null;
+    const baseImage = localBaseImage || originalImage;
     const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, originalImage.naturalWidth || originalImage.width);
-    canvas.height = Math.max(1, originalImage.naturalHeight || originalImage.height);
+    canvas.width = Math.max(1, baseImage.naturalWidth || baseImage.width);
+    canvas.height = Math.max(1, baseImage.naturalHeight || baseImage.height);
 
     const shouldReplaceTexture = Boolean(
       replacementTextureUrl && shouldReplaceByMaterialIndex.get(materialIndex)
@@ -467,7 +617,7 @@ const rebuildGlbWithModifiedImages = async ({
     } else {
       const context = canvas.getContext("2d");
       if (context) {
-        context.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
+        context.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
       }
     }
 
@@ -586,6 +736,8 @@ export const postProcessExportedAvatarBlob = async ({
   replaceTextureScaleY,
   replaceTextureRotationDeg,
   appliedUvDecals,
+  baseModelUrl,
+  slotModelUrls,
 }: {
   sourceBlob: Blob;
   replaceTextureUrl: string | null;
@@ -595,10 +747,19 @@ export const postProcessExportedAvatarBlob = async ({
   replaceTextureScaleY: number;
   replaceTextureRotationDeg: number;
   appliedUvDecals: readonly AppliedUvDecal[];
+  baseModelUrl: string | null;
+  slotModelUrls: Partial<Record<MeshSlot, string>>;
 }) => {
   const needsTexture = Boolean(replaceTextureUrl && replaceTextureMeshes.length > 0);
   const needsDecal = appliedUvDecals.length > 0;
-  if (!needsTexture && !needsDecal) {
+  const localTextureSyncMeshNames = Array.from(
+    new Set<MeshSlot>([
+      ...Object.values(SLOT_NAMES),
+      ...(Object.keys(slotModelUrls) as MeshSlot[]),
+    ])
+  );
+  const needsLocalTextureSync = Boolean(baseModelUrl || Object.keys(slotModelUrls).length > 0);
+  if (!needsTexture && !needsDecal && !needsLocalTextureSync) {
     return sourceBlob;
   }
 
@@ -611,9 +772,12 @@ export const postProcessExportedAvatarBlob = async ({
   const decalPrimitiveTargets = needsDecal
     ? collectPrimitiveTargetsForMeshes(json, decalMeshNames)
     : [];
+  const localTexturePrimitiveTargets = needsLocalTextureSync
+    ? collectPrimitiveTargetsForMeshes(json, localTextureSyncMeshNames)
+    : [];
   const targetPrimitiveTargets = Array.from(
     new Map(
-      [...replacementPrimitiveTargets, ...decalPrimitiveTargets].map((target) => [
+      [...replacementPrimitiveTargets, ...decalPrimitiveTargets, ...localTexturePrimitiveTargets].map((target) => [
         `${target.meshIndex}:${target.primitiveIndex}:${target.materialIndex}`,
         target,
       ])
@@ -630,5 +794,7 @@ export const postProcessExportedAvatarBlob = async ({
     replaceTextureScaleY,
     replaceTextureRotationDeg,
     appliedUvDecals: needsDecal ? appliedUvDecals : [],
+    baseModelUrl,
+    slotModelUrls,
   });
 };
