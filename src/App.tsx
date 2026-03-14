@@ -423,7 +423,9 @@ function App() {
 
     const beardUrl = getUrl("beard");
     const eyebrowUrl = getUrl("eyebrows");
+    const facemaskUrl = getUrl("facemask");
     const beardCapability = getCapability("beard");
+    const facemaskCapability = getCapability("facemask");
     if (beardUrl) {
       slotOwners.set(SLOT_NAMES.head, beardUrl);
 
@@ -461,6 +463,10 @@ function App() {
       slotOwners.set(SLOT_NAMES.facewear, beardUrl);
     }
 
+    if (facemaskUrl && facemaskCapability?.meshes.includes(SLOT_NAMES.head)) {
+      slotOwners.set(SLOT_NAMES.head, facemaskUrl);
+    }
+
     const partsByUrl = new Map<string, MeshSlot[]>();
     for (const [slot, url] of slotOwners.entries()) {
       if (!partsByUrl.has(url)) {
@@ -478,8 +484,8 @@ function App() {
       beardMaskModelUrl: beardUrl,
       eyebrowMaskUrl: selectedEyebrowAsset?.maskUrl || null,
       eyebrowMaskModelUrl: eyebrowUrl,
-      facemaskMaskUrl: selectedFacemaskAsset?.maskUrl || null,
-      facemaskMaskModelUrl: activeHeadModelUrl,
+      facemaskMaskUrl: facemaskUrl ? null : selectedFacemaskAsset?.maskUrl || null,
+      facemaskMaskModelUrl: facemaskUrl ? null : activeHeadModelUrl,
       parts: Array.from(partsByUrl.entries()).map(([modelUrl, includeMeshes]) => ({
         modelUrl,
         includeMeshes,
