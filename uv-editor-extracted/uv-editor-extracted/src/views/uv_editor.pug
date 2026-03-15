@@ -1,0 +1,150 @@
+.uv-editor.resize-window.hidden
+    .uv-editor__header.resize-grab-handle
+        .uv-editor__title(data-i18n="uv.title")
+            | UV Editor
+        .button.uv-editor__close(data-i18n-title="uv.tooltip.close")
+            svg(fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24")
+                path(d="M5 5h2v2H5V5zm4 4H7V7h2v2zm2 2H9V9h2v2zm2 0h-2v2H9v2H7v2H5v2h2v-2h2v-2h2v-2h2v2h2v2h2v2h2v-2h-2v-2h-2v-2h-2v-2zm2-2v2h-2V9h2zm2-2v2h-2V7h2zm0 0V5h2v2h-2z" fill="currentColor")
+    .resize-content-wrapper
+        .uv-editor__content.resize-content
+            .uv-editor__summary
+                .uv-editor__status(data-i18n="uv.empty.selectMesh")
+                    | Select a mesh with UVs
+                .uv-editor__meta(data-i18n="uv.meta.followSelection")
+                    | The UV viewport will follow the selected mesh.
+                .uv-editor__hint(data-i18n="uv.hint.memory")
+                    | Transforms update the selected mesh UVs live in memory.
+            .uv-editor__workspace
+                .uv-editor__sidebar
+                    .uv-editor__sidebar-header
+                        .uv-editor__sidebar-title(data-i18n="uv.layers.title")
+                            | Layers
+                    .uv-editor__layers
+                    .uv-editor__layers-empty(data-i18n="uv.layers.empty")
+                        | No decal images loaded yet
+                .uv-editor__main
+                    .uv-editor__toolbar
+                        .uv-editor__toolbar-section.uv-editor__toolbar-section--history
+                            .button.uv-editor__tool(data-action="undo" data-i18n="uv.tools.undo" data-i18n-title="uv.tooltip.undo")
+                                | Undo
+                            .button.uv-editor__tool(data-action="redo" data-i18n="uv.tools.redo" data-i18n-title="uv.tooltip.redo")
+                                | Redo
+                        .uv-editor__toolbar-section.uv-editor__toolbar-section--assets
+                            .button.uv-editor__tool(data-action="upload-images" data-i18n="uv.tools.uploadImages" data-i18n-title="uv.tooltip.uploadImages")
+                                | Load Images
+                            .button.uv-editor__tool(data-action="apply-to-model" data-i18n="uv.tools.applyToModel" data-i18n-title="uv.tooltip.applyToModel")
+                                | Apply to Model
+                            .button.uv-editor__tool(data-action="save-model" data-i18n="uv.tools.saveModel" data-i18n-title="uv.tooltip.saveModel")
+                                | Save Model
+                            .button.uv-editor__tool(data-action="export-png" data-i18n="uv.tools.exportPng" data-i18n-title="uv.tooltip.exportPng")
+                                | Export PNG
+                        .uv-editor__toolbar-section.uv-editor__toolbar-section--view
+                            .button.uv-editor__tool(data-action="toggle-snap" data-i18n="uv.tools.snap" data-i18n-title="uv.tooltip.snap")
+                                | Snap
+                            .button.uv-editor__tool(data-action="fit-view" data-i18n="uv.tools.fitView" data-i18n-title="uv.tooltip.fitView")
+                                | Fit View
+                        .uv-editor__toolbar-section.uv-editor__toolbar-section--transform
+                            .button.uv-editor__tool(data-action="move-left" data-i18n="uv.tools.moveLeft" data-i18n-title="uv.tooltip.moveLeft")
+                                | Left
+                            .button.uv-editor__tool(data-action="move-right" data-i18n="uv.tools.moveRight" data-i18n-title="uv.tooltip.moveRight")
+                                | Right
+                            .button.uv-editor__tool(data-action="move-up" data-i18n="uv.tools.moveUp" data-i18n-title="uv.tooltip.moveUp")
+                                | Up
+                            .button.uv-editor__tool(data-action="move-down" data-i18n="uv.tools.moveDown" data-i18n-title="uv.tooltip.moveDown")
+                                | Down
+                            .button.uv-editor__tool(data-action="scale-up" data-i18n="uv.tools.scaleUp" data-i18n-title="uv.tooltip.scaleUp")
+                                | Scale +
+                            .button.uv-editor__tool(data-action="scale-down" data-i18n="uv.tools.scaleDown" data-i18n-title="uv.tooltip.scaleDown")
+                                | Scale -
+                            .button.uv-editor__tool(data-action="rotate-left" data-i18n="uv.tools.rotateLeft" data-i18n-title="uv.tooltip.rotateLeft")
+                                | Rotate -15
+                            .button.uv-editor__tool(data-action="rotate-right" data-i18n="uv.tools.rotateRight" data-i18n-title="uv.tooltip.rotateRight")
+                                | Rotate +15
+                            .button.uv-editor__tool(data-action="reset" data-i18n="uv.tools.reset" data-i18n-title="uv.tooltip.reset")
+                                | Reset
+                        input.uv-editor__image-input(type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" multiple)
+                    .uv-editor__controls
+                        .uv-editor__control-panel.uv-editor__control-panel--meta
+                            .uv-editor__control-group
+                                .uv-editor__control-label(data-i18n="uv.controls.target")
+                                    | Target
+                                .uv-editor__selected-target
+                            .uv-editor__control-group
+                                .uv-editor__control-label(data-i18n="uv.controls.opacity")
+                                    | Opacity
+                                input.uv-editor__opacity-slider(type="range" min="0" max="100" step="1" value="100" data-i18n-title="uv.tooltip.opacity")
+                                .uv-editor__opacity-value
+                                    | 100%
+                        .uv-editor__control-panel.uv-editor__control-panel--modes
+                            .uv-editor__control-group.uv-editor__control-group--tool
+                                .uv-editor__control-label(data-i18n="uv.controls.tool")
+                                    | Tool
+                                .uv-editor__tool-mode
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="tool-transform" data-i18n="uv.tools.transform" data-i18n-title="uv.tooltip.transform")
+                                        | Transform
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="tool-crop" data-i18n="uv.tools.crop" data-i18n-title="uv.tooltip.crop")
+                                        | Crop
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="tool-brush" data-i18n="uv.tools.brush" data-i18n-title="uv.tooltip.brush")
+                                        | Brush
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="tool-eraser" data-i18n="uv.tools.eraser" data-i18n-title="uv.tooltip.eraser")
+                                        | Eraser
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="tool-eyedropper" data-i18n="uv.tools.eyedropper" data-i18n-title="uv.tooltip.eyedropper")
+                                        | Pipette
+                            .uv-editor__control-group.uv-editor__control-group--tool
+                                .uv-editor__control-label(data-i18n="uv.controls.cropShape")
+                                    | Crop Shape
+                                .uv-editor__tool-mode
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="crop-rect" data-crop-shape="rect" data-i18n="uv.tools.cropRect" data-i18n-title="uv.tooltip.cropRect")
+                                        | Rect
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="crop-circle" data-crop-shape="circle" data-i18n="uv.tools.cropCircle" data-i18n-title="uv.tooltip.cropCircle")
+                                        | Circle
+                        .uv-editor__control-panel.uv-editor__control-panel--paint
+                            .uv-editor__control-group.uv-editor__control-group--paint
+                                .uv-editor__control-label(data-i18n="uv.controls.brush")
+                                    | Brush
+                                input.uv-editor__brush-color(type="color" value="#ff2d55" data-i18n-title="uv.tooltip.brushColor")
+                                input.uv-editor__brush-size-slider(type="range" min="1" max="128" step="1" value="24" data-i18n-title="uv.tooltip.brushSize")
+                                .uv-editor__brush-size-value
+                                    | 24px
+                                input.uv-editor__brush-softness-slider(type="range" min="0" max="100" step="1" value="38" data-i18n-title="uv.tooltip.brushSoftness")
+                                .uv-editor__brush-softness-value
+                                    | 38%
+                            .uv-editor__control-group.uv-editor__control-group--paint
+                                .uv-editor__control-label(data-i18n="uv.controls.paintTarget")
+                                    | Paint To
+                                .uv-editor__paint-target
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="paint-image" data-paint-target="image" data-i18n="uv.tools.paintImage" data-i18n-title="uv.tooltip.paintImage")
+                                        | Image
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="paint-mask" data-paint-target="mask" data-i18n="uv.tools.paintMask" data-i18n-title="uv.tooltip.paintMask")
+                                        | Mask
+                                    .button.uv-editor__tool.uv-editor__tool--secondary(data-action="reset-mask" data-i18n="uv.tools.resetMask" data-i18n-title="uv.tooltip.resetMask")
+                                        | Reset Mask
+                        .uv-editor__control-panel.uv-editor__control-panel--actions
+                            .uv-editor__control-actions
+                                .button.uv-editor__tool.uv-editor__tool--secondary(data-action="toggle-show-mask" data-i18n="uv.tools.showMask" data-i18n-title="uv.tooltip.showMask")
+                                    | Show Mask
+                                .button.uv-editor__tool.uv-editor__tool--secondary(data-action="invert-mask" data-i18n="uv.tools.invertMask" data-i18n-title="uv.tooltip.invertMask")
+                                    | Invert Mask
+                                .button.uv-editor__tool.uv-editor__tool--secondary(data-action="rename-layer" data-i18n="uv.tools.renameLayer" data-i18n-title="uv.tooltip.renameLayer")
+                                    | Rename
+                                .button.uv-editor__tool.uv-editor__tool--secondary(data-action="duplicate-layer" data-i18n="uv.tools.duplicateLayer" data-i18n-title="uv.tooltip.duplicateLayer")
+                                    | Duplicate
+                                .button.uv-editor__tool.uv-editor__tool--secondary(data-action="toggle-lock" data-i18n="uv.tools.lockLayer" data-i18n-title="uv.tooltip.lockLayer")
+                                    | Lock
+                                .button.uv-editor__tool.uv-editor__tool--secondary(data-action="center-target" data-i18n="uv.tools.centerTarget" data-i18n-title="uv.tooltip.centerTarget")
+                                    | Center
+                                .button.uv-editor__tool.uv-editor__tool--secondary(data-action="fit-target" data-i18n="uv.tools.fitTarget" data-i18n-title="uv.tooltip.fitTarget")
+                                    | Fit Layer
+.uv-editor-preview.resize-window.hidden
+    .uv-editor-preview__header.resize-grab-handle
+        .uv-editor-preview__header-copy
+            .uv-editor-preview__title(data-i18n="uv.preview.title")
+                | UV Preview
+            .uv-editor-preview__meta(data-i18n="uv.preview.hint")
+                | Wheel zoom, RMB/MMB pan, Alt + drag
+    .resize-content-wrapper
+        .uv-editor-preview__content.resize-content
+            .uv-editor__viewport
+                canvas.uv-editor__canvas
+                .uv-editor__empty(data-i18n="uv.empty.layoutPreview")
+                    | Select a mesh with UVs to preview its layout

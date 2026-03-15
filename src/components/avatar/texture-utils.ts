@@ -138,11 +138,14 @@ export const drawUvDecalOverlayToCanvas = ({
 
   const centerX = uv[0] * canvas.width;
   const centerY = (1 - uv[1]) * canvas.height;
-  const width = Math.max(2, canvas.width * scale * Math.max(0.01, scaleX));
   const decalWidth = "width" in decalImage ? Number(decalImage.width) || 1 : 1;
   const decalHeight = "height" in decalImage ? Number(decalImage.height) || 1 : 1;
   const aspect = decalWidth / Math.max(1, decalHeight);
-  const height = Math.max(2, (width / Math.max(0.1, aspect)) * Math.max(0.01, scaleY));
+  const widthUv = Math.max(0.01, scale) * Math.max(0.01, scaleX);
+  const heightUv =
+    (Math.max(0.01, scale) * Math.max(0.01, scaleY)) / Math.max(0.1, aspect);
+  const width = Math.max(2, canvas.width * widthUv);
+  const height = Math.max(2, canvas.height * heightUv);
 
   context.save();
   context.translate(centerX, centerY);

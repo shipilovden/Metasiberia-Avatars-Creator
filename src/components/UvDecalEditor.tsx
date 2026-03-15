@@ -48,11 +48,18 @@ export type UvDecalEditorProps = {
   scaleY: number;
   rotationDeg: number;
   onDraftUvChange: (uv: [number, number]) => void;
+  onDraftTextureUrlChange?: (url: string | null) => void;
+  onDraftFileNameChange?: (fileName: string) => void;
+  onBaseLayerPreviewChange?: (slot: string, textureUrl: string | null) => void;
+  onScaleChange?: (value: number) => void;
   onScaleXChange: (value: number) => void;
   onScaleYChange: (value: number) => void;
+  onRotationDegChange?: (value: number) => void;
   onApply: () => void;
   onReset: () => void;
   onClearApplied: () => void;
+  onRemoveAppliedLayer?: (layerId: string) => void;
+  onCloseRequested?: () => void;
   hasApplied: boolean;
 };
 

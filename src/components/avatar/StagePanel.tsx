@@ -3,7 +3,11 @@ import { Canvas, type ThreeEvent } from "@react-three/fiber";
 import { ContactShadows, OrbitControls } from "@react-three/drei";
 import { Camera, Group, Mesh, MOUSE, Scene, Vector3, WebGLRenderer } from "three";
 import { PaintPanel, type PaintPanelProps } from "../PaintPanel";
-import { UvDecalEditor, type UvDecalEditorProps } from "../UvDecalEditor";
+import {
+  USE_EXTRACTED_UV_EDITOR_PORT,
+  UvEditorBridge,
+  type UvDecalEditorProps,
+} from "../UvEditorBridge";
 import {
   AvatarHeadMaskLayer,
   AvatarModel,
@@ -135,6 +139,50 @@ export function StagePanel({
   exportFileName,
   onCloseExportModal,
 }: StagePanelProps) {
+  const selectedDecalFileName =
+    paintPanelProps.decalFiles.find((file) => file.isSelected)?.fileName ||
+    paintPanelProps.decalFiles[paintPanelProps.decalFiles.length - 1]?.fileName ||
+    paintPanelProps.copy.notLoaded;
+  const extractedControls = {
+    mode: paintPanelProps.isTextureUvEditorOpen ? "texture" : "decal",
+    onSwitchMode: (mode: "decal" | "texture") => {
+      if (mode === "texture") {
+        if (!paintPanelProps.isTextureUvEditorOpen) {
+          paintPanelProps.onToggleTextureUvEditor();
+        }
+        return;
+      }
+
+      if (paintPanelProps.isTextureUvEditorOpen) {
+        paintPanelProps.onToggleUvEditor();
+      }
+    },
+    onUpload: paintPanelProps.isTextureUvEditorOpen
+      ? paintPanelProps.onUploadTexture
+      : paintPanelProps.onUploadDecal,
+    onRemove: paintPanelProps.isTextureUvEditorOpen
+      ? paintPanelProps.onRemoveTexture
+      : paintPanelProps.onRemoveDecal,
+    hasAsset: paintPanelProps.isTextureUvEditorOpen
+      ? paintPanelProps.hasTexture
+      : paintPanelProps.hasDecal,
+    fileLabel: paintPanelProps.isTextureUvEditorOpen
+      ? paintPanelProps.textureFileName || paintPanelProps.copy.notLoaded
+      : selectedDecalFileName,
+    labels: {
+      decal: paintPanelProps.copy.textureModeDecal,
+      texture: paintPanelProps.copy.textureModeReplace,
+      upload: paintPanelProps.isTextureUvEditorOpen
+        ? paintPanelProps.copy.uploadTexture
+        : paintPanelProps.copy.uploadDecal,
+      remove: paintPanelProps.isTextureUvEditorOpen
+        ? paintPanelProps.copy.removeTexture
+        : paintPanelProps.copy.removeDecal,
+      file: copy.texture,
+    },
+  } as const;
+  const shouldShowEditor = USE_EXTRACTED_UV_EDITOR_PORT ? isPaintPanelOpen : showUvEditor;
+
   return (
     <section className="stage-panel">
       <button
@@ -161,9 +209,11 @@ export function StagePanel({
         </button>
       </div>
 
-      {isPaintPanelOpen ? <PaintPanel {...paintPanelProps} /> : null}
+      {!USE_EXTRACTED_UV_EDITOR_PORT && isPaintPanelOpen ? <PaintPanel {...paintPanelProps} /> : null}
 
-      {showUvEditor ? <UvDecalEditor {...uvEditorProps} /> : null}
+      {shouldShowEditor ? (
+        <UvEditorBridge {...uvEditorProps} extractedControls={extractedControls} />
+      ) : null}
 
       <div className="stage-canvas-wrap">
         <Canvas
