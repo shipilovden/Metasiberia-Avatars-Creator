@@ -20,6 +20,7 @@ type SlotOption = {
 
 type AppliedUvDecal = {
   id: string;
+  fileName?: string;
   meshName: string;
   uv: [number, number];
   scale: number;
@@ -49,6 +50,7 @@ export type UvDecalEditorProps = {
   rotationDeg: number;
   onDraftUvChange: (uv: [number, number]) => void;
   onDraftTextureUrlChange?: (url: string | null) => void;
+  draftFileName?: string;
   onDraftFileNameChange?: (fileName: string) => void;
   onBaseLayerPreviewChange?: (slot: string, textureUrl: string | null) => void;
   onScaleChange?: (value: number) => void;

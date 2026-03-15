@@ -1330,6 +1330,7 @@ export function ExtractedUvEditorPort(props: ExtractedUvEditorPortProps) {
     onScaleXChange,
     onScaleYChange,
     onRotationDegChange,
+    draftFileName,
     onApply,
     onReset,
     onClearApplied,
@@ -1897,7 +1898,7 @@ export function ExtractedUvEditorPort(props: ExtractedUvEditorPortProps) {
     baseLayerTextureUrls: { ...baseLayerTextureUrls },
     paintedBaseSlots: { ...paintedBaseSlots },
     draftTextureUrl: decalTextureUrl,
-    draftFileName: extractedControls?.hasAsset ? extractedControls.fileLabel : "",
+    draftFileName: draftFileName || "",
     draftUv: [draftUv[0], draftUv[1]],
     scale,
     scaleX,
@@ -2959,51 +2960,6 @@ export function ExtractedUvEditorPort(props: ExtractedUvEditorPortProps) {
               ) : null}
               </div>
 
-              <div className="uv-editor__asset-strip">
-                {extractedControls ? (
-                  <div className="uv-editor__asset-group uv-editor__asset-group--wide">
-                    <div className="uv-editor__control-label">{locale.currentFile}</div>
-                    <div className="uv-editor__asset-bar">
-                      <div className="uv-editor__chip-row">
-                        <button
-                          type="button"
-                          className={`uv-editor__tool uv-editor__tool--secondary${extractedControls.mode === "decal" ? " uv-editor__tool--active" : ""}`}
-                          {...getTooltipProps(locale.modeDecalHint)}
-                          onClick={() => extractedControls.onSwitchMode?.("decal")}
-                        >
-                          {extractedControls.labels.decal}
-                        </button>
-                        <button
-                          type="button"
-                          className={`uv-editor__tool uv-editor__tool--secondary${extractedControls.mode === "texture" ? " uv-editor__tool--active" : ""}`}
-                          {...getTooltipProps(locale.modeTextureHint)}
-                          onClick={() => extractedControls.onSwitchMode?.("texture")}
-                        >
-                          {extractedControls.labels.texture}
-                        </button>
-                      </div>
-                      <div
-                        className="uv-editor__asset-file"
-                        title={locale.currentFileTooltip(extractedControls.fileLabel)}
-                      >
-                        {extractedControls.fileLabel}
-                      </div>
-                      <div className="uv-editor__asset-actions">
-                        <button
-                          type="button"
-                          className="uv-editor__tool uv-editor__tool--secondary"
-                          {...getTooltipProps(locale.removeAssetHint)}
-                          onClick={extractedControls.onRemove}
-                          disabled={!extractedControls.hasAsset}
-                        >
-                          {locale.removeAsset}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
               <div className="uv-editor__toolbar">
                 <div className="uv-editor__toolbar-section uv-editor__toolbar-section--double">
                   <button
@@ -3018,51 +2974,12 @@ export function ExtractedUvEditorPort(props: ExtractedUvEditorPortProps) {
                   <button
                     type="button"
                     className="uv-editor__tool"
-                    onClick={handleRedo}
-                    disabled={!canRedo}
-                    {...getTooltipProps(locale.redoHint)}
-                  >
-                    {locale.toolbarRedo}
-                  </button>
-                </div>
-
-                <div className="uv-editor__toolbar-section uv-editor__toolbar-section--quad">
-                  <button
-                    type="button"
-                    className="uv-editor__tool"
                     onClick={extractedControls?.onUpload}
                     {...getTooltipProps(locale.addHint)}
                   >
                     {locale.toolbarAdd}
                   </button>
-                  <button
-                    type="button"
-                    className="uv-editor__tool"
-                    onClick={onApply}
-                    disabled={!hasDraftLayer}
-                    {...getTooltipProps(locale.applyHint)}
-                  >
-                    {locale.toolbarApply}
-                  </button>
-                  <button
-                    type="button"
-                    className="uv-editor__tool"
-                    onClick={handleSave}
-                    disabled={!hasDraftLayer && !hasApplied}
-                    {...getTooltipProps(locale.saveHint)}
-                  >
-                    {locale.toolbarSave}
-                  </button>
-                  <button
-                    type="button"
-                    className="uv-editor__tool"
-                    onClick={handleExportPng}
-                    {...getTooltipProps(locale.exportPngHint)}
-                  >
-                    {locale.toolbarPng}
-                  </button>
                 </div>
-
               </div>
 
               <div className="uv-editor__controls">
@@ -3179,61 +3096,10 @@ export function ExtractedUvEditorPort(props: ExtractedUvEditorPortProps) {
                     </div>
                   </div>
 
-                  <div className="uv-editor__control-group">
-                    <div className="uv-editor__control-label">{locale.paintTo}</div>
-                    <div className="uv-editor__chip-row">
-                      {([
-                        ["image", locale.image],
-                        ["mask", locale.mask],
-                      ] as [UvPortPaintTarget, string][]).map(([target, label]) => (
-                        <button
-                          key={target}
-                          type="button"
-                          className={`uv-editor__tool uv-editor__tool--secondary${paintTarget === target ? " uv-editor__tool--active" : ""}`}
-                          {...getTooltipProps(paintTargetHints[target])}
-                          onClick={() => setPaintTarget(target)}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className="uv-editor__tool uv-editor__tool--secondary"
-                        {...getTooltipProps(locale.resetMaskHint)}
-                        onClick={() => setShowMaskPreview(false)}
-                      >
-                        {locale.resetMask}
-                      </button>
-                    </div>
-                  </div>
                 </div>
 
                 <div className="uv-editor__control-panel uv-editor__control-panel--actions">
                   <div className="uv-editor__control-actions">
-                    <button
-                      type="button"
-                      className={`uv-editor__tool uv-editor__tool--secondary${showMaskPreview ? " uv-editor__tool--active" : ""}`}
-                      {...getTooltipProps(locale.showMaskHint)}
-                      onClick={() => setShowMaskPreview((current) => !current)}
-                    >
-                      {locale.showMask}
-                    </button>
-                    <button
-                      type="button"
-                      className="uv-editor__tool uv-editor__tool--secondary"
-                      {...getTooltipProps(locale.invertMaskHint)}
-                    >
-                      {locale.invertMask}
-                    </button>
-                    <button
-                      type="button"
-                      className="uv-editor__tool uv-editor__tool--secondary"
-                      {...getTooltipProps(locale.renameHint)}
-                      onClick={handleRenameLayer}
-                      disabled={!selectedLayer}
-                    >
-                      {locale.rename}
-                    </button>
                     <button
                       type="button"
                       className="uv-editor__tool uv-editor__tool--secondary"
@@ -3242,58 +3108,6 @@ export function ExtractedUvEditorPort(props: ExtractedUvEditorPortProps) {
                       disabled={!canDuplicateSelected}
                     >
                       {locale.duplicate}
-                    </button>
-                    <button
-                      type="button"
-                      className={`uv-editor__tool uv-editor__tool--secondary${isLockedSelected ? " uv-editor__tool--active" : ""}`}
-                      {...getTooltipProps(isLockedSelected ? locale.unlockHint : locale.lockHint)}
-                      onClick={() =>
-                        selectedLayer
-                          ? commitLayerPatch(selectedLayer.id, { locked: !selectedLayer.locked })
-                          : undefined
-                      }
-                      disabled={!selectedLayer || isStructuralLayer}
-                    >
-                      {isLockedSelected ? locale.unlock : locale.lock}
-                    </button>
-                    <button
-                      type="button"
-                      className="uv-editor__tool uv-editor__tool--secondary"
-                      {...getTooltipProps(locale.centerHint)}
-                      onClick={centerSelected}
-                      disabled={!canTransformSelected}
-                    >
-                      {locale.center}
-                    </button>
-                    <button
-                      type="button"
-                      className="uv-editor__tool uv-editor__tool--secondary"
-                      {...getTooltipProps(locale.fitLayerHint)}
-                      onClick={fitSelected}
-                      disabled={!canTransformSelected}
-                    >
-                      {locale.fitLayer}
-                    </button>
-                    <button
-                      type="button"
-                      className={`uv-editor__tool uv-editor__tool--secondary${visibleSelected ? "" : " uv-editor__tool--active"}`}
-                      {...getTooltipProps(locale.clearSlotHint)}
-                      onClick={() =>
-                        selectedLayer
-                          ? commitLayerPatch(selectedLayer.id, { visible: !selectedLayer.visible })
-                          : undefined
-                      }
-                    >
-                      {locale.clearSlot}
-                    </button>
-                    <button
-                      type="button"
-                      className="uv-editor__tool uv-editor__tool--secondary uv-editor__tool--danger"
-                      {...getTooltipProps(locale.clearAppliedHint)}
-                      onClick={onClearApplied}
-                      disabled={!hasApplied}
-                    >
-                      {copy.uvClearApplied}
                     </button>
                   </div>
                 </div>
